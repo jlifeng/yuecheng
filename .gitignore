@@ -27,9 +27,6 @@ npm-debug.log*
 # Test coverage
 coverage/
 
-# Claude Code
-.claude/
-.codex/
 
 # Misc
 *.bak
