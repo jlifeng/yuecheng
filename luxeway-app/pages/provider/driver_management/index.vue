@@ -46,12 +46,12 @@
 
             <!-- 关联车辆 -->
             <view class="vehicle-section" v-if="driver.vehicle">
-              <uni-icons type="locked" size="12" color="#999"></uni-icons>
+              <uni-icons type="gear" size="12" color="#999"></uni-icons>
               <text class="vehicle-text">{{ driver.vehicle.plate }}</text>
               <text class="vehicle-model">{{ driver.vehicle.model }}</text>
             </view>
             <view class="vehicle-section" v-else>
-              <uni-icons type="locked" size="12" color="#ccc"></uni-icons>
+              <uni-icons type="gear" size="12" color="#ccc"></uni-icons>
               <text class="no-vehicle">未分配车辆</text>
             </view>
           </view>
@@ -59,7 +59,7 @@
 
         <view class="action-area">
           <view class="quick-edit-btn" @click.stop="editDriver(driver)">
-            <uni-icons type="compose" size="16" color="#666"></uni-icons>
+            <uni-icons type="gear" size="16" color="#666"></uni-icons>
           </view>
         </view>
       </view>

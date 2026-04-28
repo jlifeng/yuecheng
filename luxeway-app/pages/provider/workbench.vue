@@ -1,5 +1,6 @@
 <template>
   <view class="container">
+    <!-- 固定头部区域 -->
     <view class="header">
       <!-- 城市选择器 -->
       <view class="city-selector-wrapper">
@@ -18,67 +19,97 @@
       </view>
 
       <view class="tabs">
-        <view class="tab active">{{ isDriverMode ? '今日任务' : '待报价需求' }}</view>
-        <view class="tab">{{ isDriverMode ? '当前订单' : '已报价' }}</view>
-        <view class="tab">{{ isDriverMode ? '服务记录' : '进行中' }}</view>
+        <view class="tab" :class="{ active: currentTab === 'pending' }" @click="switchTab('pending')">
+          <text>{{ isDriverMode ? '今日任务' : '待报价需求' }}</text>
+        </view>
+        <view class="tab" :class="{ active: currentTab === 'quoted' }" @click="switchTab('quoted')">
+          <text>{{ isDriverMode ? '当前订单' : '已报价' }}</text>
+        </view>
+        <view class="tab" :class="{ active: currentTab === 'ongoing' }" @click="switchTab('ongoing')">
+          <text>{{ isDriverMode ? '服务记录' : '进行中' }}</text>
+        </view>
       </view>
 
       <view v-if="statusBanner" class="status-banner">
         <text class="status-banner__text">{{ statusBanner }}</text>
       </view>
+
+      <!-- 商家信息卡片 - 审核通过后显示 -->
+      <view v-if="reviewStatus === 'approved' && companyName" class="merchant-info-card">
+        <view class="merchant-info-header">
+          <text class="merchant-name">{{ companyName }}</text>
+          <view class="merchant-status-badge approved">已认证</view>
+        </view>
+        <view class="merchant-info-body">
+          <text class="merchant-welcome">欢迎，{{ displayName || '商家' }}</text>
+          <text class="merchant-tip">可正常接单报价</text>
+        </view>
+      </view>
+
+      <!-- 审核状态提示卡片 -->
+      <view v-if="reviewStatus === 'pending'" class="review-pending-card">
+        <view class="review-status-icon">⏳</view>
+        <view class="review-status-content">
+          <text class="review-status-title">审核中</text>
+          <text class="review-status-desc">商家入驻申请正在审核，审核通过后可参与报价接单</text>
+        </view>
+      </view>
+
+      <view v-if="reviewStatus === 'rejected'" class="review-rejected-card">
+        <view class="review-status-icon">❌</view>
+        <view class="review-status-content">
+          <text class="review-status-title">审核未通过</text>
+          <text class="review-status-desc">入驻申请被拒绝，请检查资料后重新申请</text>
+        </view>
+      </view>
     </view>
 
-    <!-- Order List -->
-    <scroll-view scroll-y class="list-area">
-      <view v-if="filteredDemands.length === 0" class="empty">
+    <!-- 滚动列表区域 - 自动填充剩余空间 -->
+    <scroll-view scroll-y class="list-area" @scrolltolower="loadMoreData">
+      <view v-if="displayOrders.length === 0 && !isLoadingMore" class="empty">
         <text class="empty-icon">📋</text>
-        <text class="empty-text">{{ currentCity === '全国' ? '暂无待接订单' : '该城市暂无待接订单' }}</text>
-        <text class="empty-hint" v-if="currentCity !== '全国'">试试切换到其他城市</text>
+        <text class="empty-text">{{ emptyText }}</text>
       </view>
 
-      <view class="order-card" v-for="order in filteredDemands" :key="order.id" @click="goToBid(order)">
-        <view class="order-header">
-          <text class="order-type">{{ isDriverMode ? '执行任务' : '包车/预约' }}</text>
-          <text class="order-time">{{ order.publishTime }}</text>
+      <!-- Uber 风格卡片 - 与乘客端一致 -->
+      <view class="trip-card" v-for="order in displayOrders" :key="order.id" @click="handleOrderClick(order)">
+        <view class="trip-card-header">
+          <view class="trip-status-badge" :class="getStatusBadgeClass(order)">{{ getOrderType(order) }}</view>
+          <uni-icons type="forward" size="16" color="#000"></uni-icons>
         </view>
-
-        <view class="route-info">
-          <view class="route-row">
-            <view class="dot green-dot"></view>
-            <text class="address">{{ order.start }}</text>
+        <view class="trip-card-body">
+          <!-- 路线信息 -->
+          <view class="trip-route-row">
+            <view class="trip-route-dot"></view>
+            <text class="trip-route-text">{{ order.start }}</text>
           </view>
-          <view class="route-row">
-            <view class="dot orange-dot"></view>
-            <text class="address">{{ order.end }}</text>
+          <view class="trip-route-row">
+            <view class="trip-route-dot"></view>
+            <text class="trip-route-text">前往 {{ order.end }}</text>
           </view>
-        </view>
-
-        <view class="details-row">
-          <view class="detail-item">
-            <text class="detail-label">出发时间</text>
-            <text class="detail-val">{{ order.startTime }}</text>
+          <!-- 时间信息 -->
+          <view class="trip-meta-row">
+            <view class="trip-route-dot"></view>
+            <text class="trip-time-text">{{ order.startTime }}</text>
           </view>
-          <view class="detail-item">
-            <text class="detail-label">人数</text>
-            <text class="detail-val">{{ order.passengerCount }}人</text>
+          <!-- 附加信息：人数、报价、备注 -->
+          <view class="trip-meta-row" v-if="order.passengerCount || order.price || order.remark">
+            <view class="trip-route-dot"></view>
+            <text class="trip-time-text">
+              <text v-if="order.passengerCount">{{ order.passengerCount }}人</text>
+              <text v-if="order.price" class="price-tag"> ¥{{ order.price }}</text>
+              <text v-if="order.remark" class="remark-tag">{{ order.remark }}</text>
+            </text>
           </view>
-          <view class="detail-item" v-if="order.remark">
-             <text class="detail-label">备注</text>
-             <text class="detail-val remark">{{ order.remark }}</text>
-          </view>
-        </view>
-
-        <view class="action-row">
-          <button class="bid-btn" :class="{ disabled: !canEnterBid }">
-            {{ isDriverMode ? '查看任务' : canEnterBid ? '立即报价' : '审核后可报价' }}
-          </button>
         </view>
       </view>
 
-      <!-- 其他城市订单提示 -->
-      <view class="other-cities-tip" v-if="hasOtherCityOrders && filteredDemands.length > 0">
-        <text class="tip-text">还有 {{ otherCityCount }} 个其他城市的订单</text>
-        <text class="tip-action" @click="switchToAll">查看全部</text>
+      <!-- 加载状态 -->
+      <view v-if="isLoadingMore" class="loading-more">
+        <text>加载中...</text>
+      </view>
+      <view v-else-if="displayOrders.length > 0 && !currentHasMore" class="no-more">
+        <text>没有更多了</text>
       </view>
     </scroll-view>
 
@@ -137,7 +168,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import CustomTabBar from '@/components/CustomTabBar.vue';
 import md5 from '@/utils/md5';
-import { providerService } from '@/services/provider';
+import { providerService, fetchPendingDemands, fetchQuotedBids, fetchOngoingOrders, type WorkbenchTab } from '@/services/provider';
 import { canQuoteDemand, type MerchantReviewStatus, type ProviderRole } from '@/types/provider';
 
 // 腾讯地图配置 - 请替换为你自己的密钥
@@ -165,6 +196,25 @@ const selectedDistrict = ref<any>({ id: 0, name: '' });
 const searchQuery = ref('');
 const providerRole = ref<ProviderRole>('OWNER');
 const reviewStatus = ref<MerchantReviewStatus>('APPROVED');
+const companyName = ref('');
+const displayName = ref('');
+
+// Tab 状态
+const currentTab = ref<WorkbenchTab>('pending');
+
+// 各 Tab 数据
+const pendingDemands = ref<any[]>([]);  // 待报价需求
+const quotedBids = ref<any[]>([]);       // 已报价
+const ongoingOrders = ref<any[]>([]);    // 进行中订单
+
+// 分页状态
+const pendingPage = ref(1);
+const quotedPage = ref(1);
+const ongoingPage = ref(1);
+const pendingHasMore = ref(true);
+const quotedHasMore = ref(true);
+const ongoingHasMore = ref(true);
+const isLoadingMore = ref(false);
 
 const handleSearchInput = (e: any) => {
   searchQuery.value = e.detail.value;
@@ -202,89 +252,327 @@ const displayedDistricts = computed(() => {
   return DEFAULT_CITIES.value;
 });
 
-// 所有订单数据
-const allDemands = ref([
-  {
-    id: 101,
-    publishTime: '5分钟前',
-    start: '武汉天河国际机场-T3航站楼',
-    end: '武汉洪山区人民法院',
-    startTime: '今天 16:30-16:45',
-    passengerCount: 4,
-    remark: '需要别克GL8，有两件大行李',
-    city: '武汉'
-  },
-  {
-    id: 102,
-    publishTime: '12分钟前',
-    start: '武汉站',
-    end: '光谷希尔顿酒店',
-    startTime: '明天 09:00',
-    passengerCount: 2,
-    remark: '准时出发',
-    city: '武汉'
-  },
-  {
-    id: 103,
-    publishTime: '20分钟前',
-    start: '北京首都国际机场-T3航站楼',
-    end: '北京朝阳区国贸大厦',
-    startTime: '今天 18:00',
-    passengerCount: 3,
-    remark: '需要商务车',
-    city: '北京'
-  },
-  {
-    id: 104,
-    publishTime: '30分钟前',
-    start: '上海浦东国际机场',
-    end: '上海外滩华尔道夫酒店',
-    startTime: '后天 10:00',
-    passengerCount: 2,
-    remark: '',
-    city: '上海'
-  },
-  {
-    id: 105,
-    publishTime: '1小时前',
-    start: '广州白云国际机场',
-    end: '广州天河区珠江新城',
-    startTime: '明天 14:00',
-    passengerCount: 4,
-    remark: '有婴儿车',
-    city: '广州'
+// 格式化时间显示
+const formatDemandTime = (earliest: string, latest: string) => {
+  const start = new Date(earliest)
+  const end = new Date(latest)
+  const now = new Date()
+  const isToday = start.toDateString() === now.toDateString()
+  const isTomorrow = new Date(now.getTime() + 86400000).toDateString() === start.toDateString()
+
+  const startHour = start.getHours().toString().padStart(2, '0')
+  const startMin = start.getMinutes().toString().padStart(2, '0')
+  const endHour = end.getHours().toString().padStart(2, '0')
+  const endMin = end.getMinutes().toString().padStart(2, '0')
+
+  let datePrefix = ''
+  if (isToday) {
+    datePrefix = '今天 '
+  } else if (isTomorrow) {
+    datePrefix = '明天 '
+  } else {
+    const month = start.getMonth() + 1
+    const day = start.getDate()
+    datePrefix = `${month}月${day}日 `
   }
-]);
 
-// 根据当前城市过滤订单
-const filteredDemands = computed(() => {
-  if (currentCity.value === '全国') {
-    return allDemands.value;
+  return `${datePrefix}${startHour}:${startMin}-${endHour}:${endMin}`
+}
+
+// 计算发布时间差
+const formatPublishTime = (createdAt: string) => {
+  const created = new Date(createdAt)
+  const now = new Date()
+  const diffMs = now.getTime() - created.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+
+  if (diffMins < 1) return '刚刚'
+  if (diffMins < 60) return `${diffMins}分钟前`
+  if (diffHours < 24) return `${diffHours}小时前`
+  if (diffDays < 7) return `${diffDays}天前`
+  return created.toLocaleDateString()
+}
+
+// 加载待报价需求列表
+const loadDemands = async (isLoadMore: boolean = false) => {
+  if (isLoadingMore.value) return
+
+  if (isLoadMore) {
+    if (!pendingHasMore.value) return
+    pendingPage.value++
+  } else {
+    pendingPage.value = 1
+    pendingHasMore.value = true
   }
-  return allDemands.value.filter(order => order.city === currentCity.value);
+
+  isLoadingMore.value = true
+  try {
+    const { data, hasMore } = await fetchPendingDemands(pendingPage.value)
+    const formatted = data.map(d => ({
+      id: d.id,
+      publishTime: formatPublishTime(d.created_at),
+      start: d.start_address,
+      end: d.end_address,
+      startTime: formatDemandTime(d.earliest_departure, d.latest_departure),
+      passengerCount: d.passenger_count || 1,
+      remark: d.requirements || '',
+      city: extractCity(d.start_address),
+      rawData: d
+    }))
+
+    if (isLoadMore) {
+      pendingDemands.value.push(...formatted)
+    } else {
+      pendingDemands.value = formatted
+    }
+    pendingHasMore.value = hasMore
+  } catch (error) {
+    console.error('加载需求列表失败', error)
+    if (!isLoadMore) pendingDemands.value = []
+  } finally {
+    isLoadingMore.value = false
+  }
+}
+
+// 从地址中提取城市名
+const extractCity = (address: string) => {
+  // 尝试从地址中提取城市名
+  const cityMatch = address.match(/([^市]+市|[^省]+省)/)
+  if (cityMatch) {
+    return cityMatch[1].replace(/市|省/g, '')
+  }
+  // 尝试匹配常见城市关键词
+  const cities = ['北京', '上海', '广州', '深圳', '杭州', '南京', '成都', '武汉', '西安', '苏州', '郑州', '长沙', '沈阳', '青岛', '大连', '厦门', '济南', '合肥']
+  for (const city of cities) {
+    if (address.includes(city)) return city
+  }
+  return '其他'
+}
+
+// 根据当前 Tab 和城市显示订单
+const displayOrders = computed(() => {
+  let orders: any[] = [];
+
+  if (currentTab.value === 'pending') {
+    orders = pendingDemands.value;
+  } else if (currentTab.value === 'quoted') {
+    orders = quotedBids.value;
+  } else if (currentTab.value === 'ongoing') {
+    orders = ongoingOrders.value;
+  }
+
+  // 城市过滤（仅对 pending 和 quoted 有效）
+  if (currentTab.value === 'pending' || currentTab.value === 'quoted') {
+    if (currentCity.value !== '全国') {
+      orders = orders.filter(order => order.city === currentCity.value);
+    }
+  }
+
+  return orders;
 });
 
-// 是否有其他城市的订单
-const hasOtherCityOrders = computed(() => {
-  if (currentCity.value === '全国') return false;
-  return allDemands.value.some(order => order.city !== currentCity.value);
+// 空状态提示文字
+const emptyText = computed(() => {
+  if (currentTab.value === 'pending') {
+    return '暂无待报价的需求';
+  } else if (currentTab.value === 'quoted') {
+    return '暂无已报价的订单';
+  } else {
+    return '暂无进行中的订单';
+  }
 });
 
-// 其他城市订单数量
-const otherCityCount = computed(() => {
-  if (currentCity.value === '全国') return 0;
-  return allDemands.value.filter(order => order.city !== currentCity.value).length;
+// 当前 Tab 是否还有更多数据
+const currentHasMore = computed(() => {
+  if (currentTab.value === 'pending') return pendingHasMore.value
+  if (currentTab.value === 'quoted') return quotedHasMore.value
+  return ongoingHasMore.value
 });
+
+// 切换 Tab
+const switchTab = (tab: WorkbenchTab) => {
+  currentTab.value = tab;
+  loadTabData(tab);
+};
+
+// 加载指定 Tab 的数据
+const loadTabData = async (tab: WorkbenchTab) => {
+  if (tab === 'pending') {
+    await loadDemands();
+  } else if (tab === 'quoted') {
+    await loadQuotedBids();
+  } else if (tab === 'ongoing') {
+    await loadOngoingOrders();
+  }
+};
+
+// 加载已报价列表
+const loadQuotedBids = async (isLoadMore: boolean = false) => {
+  if (isLoadingMore.value) return
+
+  if (isLoadMore) {
+    if (!quotedHasMore.value) return
+    quotedPage.value++
+  } else {
+    quotedPage.value = 1
+    quotedHasMore.value = true
+  }
+
+  isLoadingMore.value = true
+  try {
+    const { data, hasMore } = await fetchQuotedBids(quotedPage.value)
+    const formatted = data.map(b => ({
+      id: b.id,
+      demandId: b.demandId,
+      price: b.price,
+      status: b.status,
+      start: b.start,
+      end: b.end,
+      startTime: formatDemandTime(b.earliestDeparture, b.latestDeparture),
+      passengerCount: b.passengerCount,
+      remark: b.remark,
+      demandStatus: b.demandStatus,
+      city: extractCity(b.start),
+      rawData: b
+    }))
+
+    if (isLoadMore) {
+      quotedBids.value.push(...formatted)
+    } else {
+      quotedBids.value = formatted
+    }
+    quotedHasMore.value = hasMore
+  } catch (error) {
+    console.error('加载已报价列表失败', error)
+    if (!isLoadMore) quotedBids.value = []
+  } finally {
+    isLoadingMore.value = false
+  }
+};
+
+// 加载进行中订单
+const loadOngoingOrders = async (isLoadMore: boolean = false) => {
+  if (isLoadingMore.value) return
+
+  if (isLoadMore) {
+    if (!ongoingHasMore.value) return
+    ongoingPage.value++
+  } else {
+    ongoingPage.value = 1
+    ongoingHasMore.value = true
+  }
+
+  isLoadingMore.value = true
+  try {
+    const { data, hasMore } = await fetchOngoingOrders(ongoingPage.value)
+    const formatted = data.map(o => ({
+      id: o.id,
+      bidId: o.bidId,
+      price: o.price,
+      start: o.start,
+      end: o.end,
+      startTime: formatDemandTime(o.earliestDeparture, o.latestDeparture),
+      passengerCount: o.passengerCount,
+      remark: o.remark,
+      status: o.status,
+      statusDesc: o.statusDesc,
+      rawData: o
+    }))
+
+    if (isLoadMore) {
+      ongoingOrders.value.push(...formatted)
+    } else {
+      ongoingOrders.value = formatted
+    }
+    ongoingHasMore.value = hasMore
+  } catch (error) {
+    console.error('加载进行中订单失败', error)
+    if (!isLoadMore) ongoingOrders.value = []
+  } finally {
+    isLoadingMore.value = false
+  }
+};
+
+// 获取订单类型标签
+const getOrderType = (order: any) => {
+  if (currentTab.value === 'pending') {
+    return '待报价';
+  } else if (currentTab.value === 'quoted') {
+    // 根据报价状态显示
+    switch (order.status) {
+      case 'PENDING': return '已报价';
+      case 'ACCEPTED': return '已被接受';
+      case 'REJECTED': return '已被拒绝';
+      default: return '已报价';
+    }
+  } else {
+    return order.statusDesc || '进行中';
+  }
+};
+
+// 获取状态徽章样式类
+const getStatusBadgeClass = (order: any) => {
+  if (currentTab.value === 'pending') {
+    return 'status-bidding';  // 黑色
+  } else if (currentTab.value === 'quoted') {
+    switch (order.status) {
+      case 'PENDING': return 'status-bidding';  // 黑色
+      case 'ACCEPTED': return 'status-active';  // 蓝色
+      case 'REJECTED': return 'status-cancelled';  // 灰色
+      default: return 'status-bidding';
+    }
+  } else {
+    // 进行中
+    if (order.status === 'IN_PROGRESS') {
+      return 'status-active';  // 蓝色
+    }
+    return 'status-bidding';  // 黑色
+  }
+};
+
+// 处理订单点击
+const handleOrderClick = (order: any) => {
+  if (currentTab.value === 'pending') {
+    // 待报价：跳转到报价页面
+    goToBid(order.rawData || order);
+  } else if (currentTab.value === 'quoted') {
+    // 已报价：根据状态跳转
+    if (order.status === 'ACCEPTED' || order.demandStatus === 'ACCEPTED') {
+      // 报价被接受，跳转到商家端订单详情
+      uni.navigateTo({ url: `/pages/provider/order_detail?demandId=${order.demandId}` });
+    } else {
+      uni.showToast({ title: '报价等待乘客选择中', icon: 'none' });
+    }
+  } else if (currentTab.value === 'ongoing') {
+    // 进行中：跳转商家端订单详情
+    uni.navigateTo({ url: `/pages/provider/order_detail?demandId=${order.id}` });
+  }
+};
+
+// 加载更多数据
+const loadMoreData = async () => {
+  if (isLoadingMore.value) return
+
+  if (currentTab.value === 'pending' && pendingHasMore.value) {
+    await loadDemands(true)
+  } else if (currentTab.value === 'quoted' && quotedHasMore.value) {
+    await loadQuotedBids(true)
+  } else if (currentTab.value === 'ongoing' && ongoingHasMore.value) {
+    await loadOngoingOrders(true)
+  }
+};
 
 const isDriverMode = computed(() => providerRole.value === 'DRIVER');
 const canEnterBid = computed(() => !isDriverMode.value && canQuoteDemand(reviewStatus.value));
+
+// 仅司机模式或无 merchant_id 时显示 banner 提示
 const statusBanner = computed(() => {
   if (isDriverMode.value) {
-    return '当前为司机模式，仅展示任务与订单进度，不开放报价和经营入口';
+    return '当前为司机模式，仅展示任务与订单进度';
   }
-  if (!canQuoteDemand(reviewStatus.value)) {
-    return '商家审核通过后才能参与报价，当前可先查看需求与准备车队资源';
-  }
+  // 其他状态用卡片展示，不用 banner
   return '';
 });
 
@@ -293,6 +581,9 @@ const loadWorkbenchAccess = async () => {
     const workbench = await providerService.fetchWorkbench();
     providerRole.value = workbench.session.role;
     reviewStatus.value = workbench.session.reviewStatus;
+    companyName.value = workbench.session.companyName || '';
+    displayName.value = workbench.session.displayName || '';
+    console.log('loadWorkbenchAccess - reviewStatus:', reviewStatus.value, 'companyName:', companyName.value);
   } catch (error) {
     console.error('加载工作台权限失败', error);
   }
@@ -429,7 +720,7 @@ const goToBid = (order: any) => {
   }
 
   uni.navigateTo({
-    url: `/pages/provider/bid_input?id=${order.id}`
+    url: `/pages/provider/bid_input?demandId=${order.id}`
   });
 };
 
@@ -522,8 +813,10 @@ const locateCity = () => {
   });
 };
 
-onMounted(() => {
-  loadWorkbenchAccess();
+onMounted(async () => {
+  await loadWorkbenchAccess();
+  // 加载当前 Tab 的数据
+  await loadTabData(currentTab.value);
   // 自动定位城市
   locateCity();
 });
@@ -533,13 +826,13 @@ onMounted(() => {
 .container {
   min-height: 100vh;
   background-color: #f7f8fa;
+  display: flex;
+  flex-direction: column;
 }
 
 .header {
   background: #fff;
-  position: sticky;
-  top: 0;
-  z-index: 100;
+  flex-shrink: 0;
 }
 
 /* 城市选择器 */
@@ -617,6 +910,105 @@ onMounted(() => {
   line-height: 1.6;
 }
 
+/* 商家信息卡片 - 审核通过 */
+.merchant-info-card {
+  margin: 0 30rpx 24rpx;
+  background: linear-gradient(135deg, #1e2023 0%, #333 100%);
+  border-radius: 16rpx;
+  padding: 24rpx;
+}
+
+.merchant-info-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16rpx;
+}
+
+.merchant-name {
+  font-size: 32rpx;
+  color: #fff;
+  font-weight: 600;
+}
+
+.merchant-status-badge {
+  font-size: 22rpx;
+  padding: 6rpx 12rpx;
+  border-radius: 6rpx;
+}
+
+.merchant-status-badge.approved {
+  background: rgba(59, 130, 246, 0.8);
+  color: #fff;
+}
+
+.merchant-info-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.merchant-welcome {
+  font-size: 28rpx;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.merchant-tip {
+  font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* 审核中状态卡片 */
+.review-pending-card,
+.review-rejected-card {
+  margin: 0 30rpx 24rpx;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+}
+
+.review-pending-card {
+  background: #fff7e6;
+  border: 1px solid #ffd591;
+}
+
+.review-rejected-card {
+  background: #fff1f0;
+  border: 1px solid #ffa39e;
+}
+
+.review-status-icon {
+  font-size: 48rpx;
+}
+
+.review-status-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.review-status-title {
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.review-pending-card .review-status-title,
+.review-pending-card .review-status-desc {
+  color: #ad6800;
+}
+
+.review-rejected-card .review-status-title,
+.review-rejected-card .review-status-desc {
+  color: #cf1322;
+}
+
+.review-status-desc {
+  font-size: 24rpx;
+  opacity: 0.8;
+}
+
 .tab.active::after {
   content: '';
   position: absolute;
@@ -629,114 +1021,91 @@ onMounted(() => {
 }
 
 .list-area {
-  padding: 15px;
-  padding-right: 15px;
-  height: calc(100vh - 120px);
+  padding: 30rpx;
+  flex: 1;
   box-sizing: border-box;
 }
 
-.order-card {
-  background: #fff;
-  border-radius: 12px;
-  padding: 15px;
-  margin-bottom: 15px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+/* Uber 风格卡片 - 与乘客端一致 */
+.trip-card {
+  background: #f5f5f5;
+  border-radius: 16rpx;
+  padding: 20rpx 24rpx;
+  margin-bottom: 16rpx;
 }
 
-.order-header {
+.trip-card:last-child {
+  margin-bottom: 0;
+}
+
+.trip-card-header {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 15px;
-}
-
-.order-type {
-  font-size: 12px;
-  background: #f0f0f0;
-  color: #666;
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-
-.order-time {
-  font-size: 12px;
-  color: #999;
-}
-
-.route-info {
-  margin-bottom: 15px;
-}
-
-.route-row {
-  display: flex;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 16rpx;
 }
 
-.dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  margin-right: 10px;
-}
-.green-dot { background: #3cb371; }
-.orange-dot { background: #ff5f00; }
-
-.address {
-  font-size: 16px;
+/* 状态徽章 */
+.trip-status-badge {
+  font-size: 24rpx;
   font-weight: 500;
-  color: #333;
+  padding: 8rpx 16rpx;
+  border-radius: 8rpx;
+  color: #fff;
 }
 
-.details-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 15px;
-  border-top: 1px solid #f5f5f5;
-  padding-top: 15px;
-  margin-bottom: 15px;
-}
+.trip-status-badge.status-bidding { background: #000; }
+.trip-status-badge.status-accepted { background: #000; }
+.trip-status-badge.status-active { background: #3b82f6; }
+.trip-status-badge.status-pending { background: #999; }
+.trip-status-badge.status-done { background: #999; }
+.trip-status-badge.status-cancelled { background: #999; }
 
-.detail-item {
+.trip-card-body {
   display: flex;
   flex-direction: column;
+  gap: 8rpx;
 }
 
-.detail-label {
-  font-size: 12px;
-  color: #999;
-  margin-bottom: 2px;
-}
-
-.detail-val {
-  font-size: 14px;
-  color: #333;
-}
-
-.remark {
-  color: #ff5f00;
-}
-
-.action-row {
+.trip-route-row {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  gap: 12rpx;
 }
 
-.bid-btn {
-  background: #1e2023;
-  color: #fff;
-  font-size: 14px;
-  border-radius: 20px;
-  padding: 0 20px;
-  height: 36px;
-  line-height: 36px;
+.trip-route-dot {
+  width: 8rpx;
+  height: 8rpx;
+  border-radius: 50%;
+  background: #000;
 }
 
-.bid-btn.disabled {
-  background: #d9d9d9;
+.trip-route-text {
+  font-size: 30rpx;
+  color: #000;
+  font-weight: 500;
+}
+
+.trip-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.trip-time-text {
+  font-size: 26rpx;
   color: #666;
 }
 
-.bid-btn::after { border: none; }
+.price-tag {
+  color: #3b82f6;
+  font-weight: 500;
+}
+
+.remark-tag {
+  color: #999;
+  font-size: 24rpx;
+}
 
 /* 空状态 */
 .empty {
@@ -910,5 +1279,18 @@ onMounted(() => {
   font-size: 12px;
   color: #999;
   margin-left: 8px;
+}
+
+/* 加载状态 */
+.loading-more,
+.no-more {
+  text-align: center;
+  padding: 30rpx 0;
+  font-size: 26rpx;
+  color: #999;
+}
+
+.loading-more {
+  color: #666;
 }
 </style>

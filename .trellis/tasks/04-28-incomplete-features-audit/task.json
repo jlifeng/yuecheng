@@ -1,0 +1,31 @@
+{
+  "id": "incomplete-features-audit",
+  "name": "incomplete-features-audit",
+  "title": "梳理未完成功能与开发规划",
+  "description": "",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "claude",
+  "assignee": "claude",
+  "createdAt": "2026-04-28",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "04-28-order-creation-logic",
+    "04-28-order-detail-real-data",
+    "04-28-demand-status-workflow",
+    "04-28-my-orders-page"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

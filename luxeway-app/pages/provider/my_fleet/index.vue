@@ -63,7 +63,7 @@
 
         <view class="action-area">
           <view class="quick-edit-btn" @click.stop="editVehicle(vehicle)">
-            <uni-icons type="compose" size="16" color="#666"></uni-icons>
+            <uni-icons type="gear" size="16" color="#666"></uni-icons>
           </view>
         </view>
       </view>

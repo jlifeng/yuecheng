@@ -1,4 +1,4 @@
-export type MerchantReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+export type MerchantReviewStatus = 'pending' | 'approved' | 'rejected'
 
 export type ProviderRole = 'OWNER' | 'DISPATCHER' | 'DRIVER'
 
@@ -23,7 +23,7 @@ export interface ProviderTabItem {
   path: string
 }
 
-export const canQuoteDemand = (status: MerchantReviewStatus) => status === 'APPROVED'
+export const canQuoteDemand = (status: MerchantReviewStatus) => status === 'approved'
 
 export const visibleMenusForRole = (role: ProviderRole): ProviderMenuKey[] => {
   if (role === 'DRIVER') {
@@ -39,12 +39,12 @@ export const providerTabItemsForRole = (role: ProviderRole): ProviderTabItem[] =
   if (role === 'DRIVER') {
     return [
       { icon: 'home', text: '任务', path: '/pages/provider/workbench' },
-      { icon: 'person', text: '我的', path: '/pages/provider/mine' }
+      { icon: 'person', text: '我的', path: '/pages/mine/mine' }
     ]
   }
 
   return [
     { icon: 'home', text: '工作台', path: '/pages/provider/workbench' },
-    { icon: 'person', text: '我的', path: '/pages/provider/mine' }
+    { icon: 'person', text: '我的', path: '/pages/mine/mine' }
   ]
 }

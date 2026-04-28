@@ -32,12 +32,12 @@
     <view v-if="!isDriverMode" class="menu-section">
       <view class="section-title">业务管理</view>
       <view class="menu-list">
-        <view class="menu-item">
-          <text>我的报价</text>
+        <view class="menu-item" @click="goToOrders">
+          <text>我的订单</text>
           <text class="arrow" decode="true">&gt;</text>
         </view>
         <view class="menu-item">
-          <text>订单记录</text>
+          <text>我的报价</text>
           <text class="arrow" decode="true">&gt;</text>
         </view>
         <view class="menu-item">
@@ -105,6 +105,10 @@ const goToFleetManage = () => {
 
 const goToDriverManage = () => {
   uni.navigateTo({ url: '/pages/provider/driver_management/index' });
+};
+
+const goToOrders = () => {
+  uni.navigateTo({ url: '/pages/provider/orders' });
 };
 
 const navigate = (url: string) => {

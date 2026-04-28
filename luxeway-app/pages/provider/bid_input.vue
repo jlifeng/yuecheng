@@ -62,7 +62,11 @@
       <!-- 选择车辆 -->
       <view class="form-section">
         <text class="section-label">选择车辆 <text class="required">*</text></text>
-        <view class="vehicle-selector">
+        <view v-if="availableVehicles.length === 0" class="empty-vehicle">
+          <text class="empty-text">暂无可用车辆</text>
+          <text class="empty-hint">请先在"我的车队"中添加车辆</text>
+        </view>
+        <view v-else class="vehicle-selector">
           <scroll-view scroll-x class="vehicle-scroll" show-scrollbar="false">
             <view
               class="vehicle-option"
@@ -79,7 +83,7 @@
             </view>
           </scroll-view>
         </view>
-        <text class="form-hint" v-if="!selectedVehicle">请选择要派出的车辆</text>
+        <text class="form-hint" v-if="availableVehicles.length > 0 && !selectedVehicle">请选择要派出的车辆</text>
       </view>
 
       <!-- 报价金额 -->
@@ -140,7 +144,7 @@
 
     <!-- 底部按钮 -->
     <view class="bottom-actions">
-      <button class="submit-btn" :class="{ disabled: !canSubmit }" @click="submitBid">
+      <button class="submit-btn" :class="{ disabled: !canSubmit }" @click="submitBidHandler">
         <text>确认报价</text>
         <text class="btn-price" v-if="bidPrice">¥{{ bidPrice }}</text>
       </button>
@@ -150,12 +154,16 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { providerService } from '@/services/provider';
-import { canQuoteDemand, type MerchantReviewStatus, type ProviderRole } from '@/types/provider';
+import { onLoad } from '@dcloudio/uni-app'
+import { submitBid } from '@/services/provider'
 
-// 订单信息
+const SUPABASE_URL = 'https://qcsmavxqjofrhrdwgkpt.supabase.co'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjc21hdnhxam9mcmhyZHdna3B0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3OTU2OTUsImV4cCI6MjA5MTM3MTY5NX0.zM4mVvvZAylQIXZFrnzaSAy_MGqTvR3hrSWfSSP8xRQ'
+
+// 需求信息
+const demandInfo = ref<any>(null)
 const orderInfo = ref({
-  id: 0,
+  id: '',
   start: '',
   end: '',
   startTime: '',
@@ -166,24 +174,18 @@ const orderInfo = ref({
 });
 
 // 可用车辆列表
-const availableVehicles = ref([
-  { id: 1, plate: '鄂A·B1234', model: '丰田阿尔法', seats: 7, color: '黑色', status: 'active' },
-  { id: 2, plate: '鄂A·X5678', model: '奔驰S级', seats: 4, color: '白色', status: 'active' },
-  { id: 3, plate: '鄂A·C9012', model: '别克GL8', seats: 8, color: '银色', status: 'maintenance' }
-]);
+const availableVehicles = ref<any[]>([]);
 
 // 表单数据
 const selectedVehicle = ref<any>(null);
 const bidPrice = ref('');
 const bidRemark = ref('');
-const platformFeeRate = 5; // 平台服务费率 5%
-const providerRole = ref<ProviderRole>('OWNER');
-const reviewStatus = ref<MerchantReviewStatus>('APPROVED');
+const platformFeeRate = 5;
+const accessHint = ref('');
 
-// 建议价格（根据订单距离等计算）
+// 建议价格
 const suggestedPrices = computed(() => {
-  const basePrice = parseInt(orderInfo.value.distance) || 100;
-  return [basePrice, Math.round(basePrice * 1.2), Math.round(basePrice * 1.5)];
+  return [100, 150, 200]
 });
 
 // 平台服务费
@@ -202,24 +204,8 @@ const estimatedIncome = computed(() => {
 
 // 是否可以提交
 const canSubmit = computed(() => {
-  return (
-    providerRole.value !== 'DRIVER' &&
-    canQuoteDemand(reviewStatus.value) &&
-    selectedVehicle.value &&
-    bidPrice.value &&
-    parseFloat(bidPrice.value) > 0
-  );
+  return bidPrice.value && parseFloat(bidPrice.value) > 0
 });
-
-const accessHint = computed(() => {
-  if (providerRole.value === 'DRIVER') {
-    return '司机模式不可报价，请返回任务页处理已分配订单'
-  }
-  if (!canQuoteDemand(reviewStatus.value)) {
-    return '商家审核通过后才可报价，当前页面仅供预览订单信息'
-  }
-  return ''
-})
 
 // 获取车辆颜色
 const getVehicleColor = (colorName: string) => {
@@ -238,13 +224,6 @@ const selectVehicle = (vehicle: any) => {
     return;
   }
   selectedVehicle.value = vehicle;
-
-  // 根据车型自动建议价格
-  if (vehicle.seats >= 7) {
-    setPrice(suggestedPrices.value[1]); // 大车推荐中等价位
-  } else {
-    setPrice(suggestedPrices.value[0]); // 小车推荐基础价位
-  }
 };
 
 // 设置价格
@@ -255,7 +234,6 @@ const setPrice = (price: number) => {
 // 价格输入处理
 const onPriceInput = (e: any) => {
   const value = e.detail.value;
-  // 限制小数点后两位
   if (value.includes('.')) {
     const parts = value.split('.');
     if (parts[1] && parts[1].length > 2) {
@@ -264,10 +242,98 @@ const onPriceInput = (e: any) => {
   }
 };
 
+// 格式化时间
+const formatTime = (earliest: string, latest: string) => {
+  const start = new Date(earliest)
+  const end = new Date(latest)
+  const month = start.getMonth() + 1
+  const day = start.getDate()
+  const startHour = start.getHours().toString().padStart(2, '0')
+  const startMin = start.getMinutes().toString().padStart(2, '0')
+  const endHour = end.getHours().toString().padStart(2, '0')
+  const endMin = end.getMinutes().toString().padStart(2, '0')
+  return `${month}月${day}日 ${startHour}:${startMin}-${endHour}:${endMin}`
+}
+
+// 加载需求详情
+const loadDemandDetail = async (demandId: string) => {
+  const accessToken = uni.getStorageSync('accessToken')
+  const userProfile = uni.getStorageSync('userProfile')
+
+  if (!accessToken || !userProfile?.merchant_id) {
+    accessHint.value = '请先登录商家账号'
+    return
+  }
+
+  try {
+    const res = await uni.request({
+      url: `${SUPABASE_URL}/rest/v1/demands?id=eq.${demandId}&select=*`,
+      method: 'GET',
+      header: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${accessToken}`
+      }
+    })
+
+    if (res.statusCode === 200 && res.data && (res.data as any[]).length > 0) {
+      demandInfo.value = (res.data as any[])[0]
+      orderInfo.value = {
+        id: demandInfo.value.id,
+        start: demandInfo.value.start_address,
+        end: demandInfo.value.end_address,
+        startTime: formatTime(demandInfo.value.earliest_departure, demandInfo.value.latest_departure),
+        passengerCount: demandInfo.value.passenger_count || 1,
+        distance: '',
+        duration: '',
+        remark: demandInfo.value.requirements || ''
+      }
+    }
+  } catch (e) {
+    console.error('加载需求详情失败', e)
+  }
+}
+
+// 加载车辆列表
+const loadVehicles = async () => {
+  const accessToken = uni.getStorageSync('accessToken')
+  const userProfile = uni.getStorageSync('userProfile')
+
+  if (!accessToken || !userProfile?.merchant_id) {
+    return
+  }
+
+  try {
+    const res = await uni.request({
+      url: `${SUPABASE_URL}/rest/v1/vehicles?merchant_id=eq.${userProfile.merchant_id}&status=eq.active&select=*&order=created_at.desc`,
+      method: 'GET',
+      header: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${accessToken}`
+      }
+    })
+
+    console.log('车辆查询结果:', res.statusCode, res.data)
+
+    if (res.statusCode === 200 && res.data) {
+      availableVehicles.value = (res.data as any[]).map(v => ({
+        id: v.id,
+        plate: v.plate_number,
+        model: v.model,
+        seats: v.seats,
+        color: v.color || '黑色',
+        status: v.status,
+        frontImage: v.front_image_url
+      }))
+    }
+  } catch (e) {
+    console.error('加载车辆列表失败', e)
+  }
+}
+
 // 提交报价
-const submitBid = async () => {
+const submitBidHandler = async () => {
   if (!canSubmit.value) {
-    uni.showToast({ title: accessHint.value || '请完善报价信息', icon: 'none' });
+    uni.showToast({ title: '请输入报价金额', icon: 'none' });
     return;
   }
 
@@ -283,60 +349,34 @@ const submitBid = async () => {
 
   try {
     uni.showLoading({ title: '提交中...' });
-    await providerService.submitBid({
+    await submitBid({
       demandId: orderInfo.value.id,
-      vehicleId: selectedVehicle.value.id,
       price: parseFloat(bidPrice.value),
-      remark: bidRemark.value
+      carModel: selectedVehicle.value?.model || undefined,
+      message: bidRemark.value || undefined
     });
     uni.hideLoading();
     uni.showToast({ title: '报价成功', icon: 'success' });
     setTimeout(() => {
       uni.navigateBack();
     }, 1200);
-  } catch (error) {
+  } catch (error: any) {
     uni.hideLoading();
     uni.showToast({
-      title: error instanceof Error ? error.message : '报价失败',
+      title: error.message || '报价失败',
       icon: 'none'
     });
   }
 };
 
-// 页面加载时获取订单信息
-onMounted(() => {
-  providerService
-    .fetchWorkbench()
-    .then((workbench) => {
-      providerRole.value = workbench.session.role;
-      reviewStatus.value = workbench.session.reviewStatus;
-    })
-    .catch((error) => {
-      console.error('加载商家权限失败', error);
-    });
-
-  const pages = getCurrentPages();
-  const currentPage = pages[pages.length - 1];
-  const options = currentPage.options as any;
-
-  if (options.id) {
-    orderInfo.value.id = parseInt(options.id);
-
-    // 模拟获取订单详情（实际应该从接口获取）
-    const mockOrder = {
-      id: 101,
-      start: '武汉天河国际机场-T3航站楼',
-      end: '武汉洪山区人民法院',
-      startTime: '今天 16:30-16:45',
-      passengerCount: 4,
-      distance: '45公里',
-      duration: '约50分钟',
-      remark: '需要别克GL8，有两件大行李'
-    };
-
-    orderInfo.value = { ...orderInfo.value, ...mockOrder };
+// 页面加载
+onLoad((options: any) => {
+  if (options?.demandId) {
+    loadDemandDetail(options.demandId)
   }
-});
+  // 加载车辆列表
+  loadVehicles()
+})
 </script>
 
 <style scoped>
@@ -544,6 +584,27 @@ onMounted(() => {
 .form-hint {
   font-size: 12px;
   color: #ff5f00;
+}
+
+/* 空车辆状态 */
+.empty-vehicle {
+  background: #f5f5f5;
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+}
+
+.empty-vehicle .empty-text {
+  display: block;
+  font-size: 14px;
+  color: #999;
+  margin-bottom: 6px;
+}
+
+.empty-vehicle .empty-hint {
+  display: block;
+  font-size: 12px;
+  color: #ccc;
 }
 
 /* 价格输入 */

@@ -1,61 +1,71 @@
 <template>
   <view class="custom-tabbar">
-    <view 
-      v-for="(item, index) in tabList" 
-      :key="index"
-      class="tab-item" 
-      :class="{ active: currentIndex === index }"
-      @click="switchTab(index, item.path)"
+    <view
+      class="tab-item"
+      :class="{ active: currentIndex === 0 }"
+      @click="switchTab(0)"
     >
-      <uni-icons 
-        :type="item.icon" 
-        :size="22"
-        :color="currentIndex === index ? '#1e2023' : '#999999'"
+      <uni-icons
+        type="home"
+        size="22"
+        :color="currentIndex === 0 ? '#000' : '#999'"
       ></uni-icons>
-      <text class="tab-text">{{ item.text }}</text>
+      <text class="tab-text">首页</text>
+    </view>
+    <view
+      class="tab-item"
+      :class="{ active: currentIndex === 1 }"
+      @click="switchTab(1)"
+    >
+      <uni-icons
+        type="person"
+        size="22"
+        :color="currentIndex === 1 ? '#000' : '#999'"
+      ></uni-icons>
+      <text class="tab-text">我的</text>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import { providerTabItemsForRole, type ProviderRole } from '@/types/provider';
-import { ProviderSessionManager } from '@/utils/dataManager';
+import { ref, watch, computed } from 'vue'
 
 const props = defineProps({
   current: {
     type: Number,
     default: 0
   }
-});
+})
 
-const currentIndex = ref(props.current);
-const userRole = ref('passenger');
-const providerRole = ref<ProviderRole>('OWNER');
+const currentIndex = ref(0)
 
-onMounted(() => {
-  userRole.value = uni.getStorageSync('userRole') || 'passenger';
-  providerRole.value = ProviderSessionManager.getSession().role;
-});
+// 监听 props 变化
+watch(() => props.current, (newVal) => {
+  currentIndex.value = newVal
+}, { immediate: true })
 
-// 根据角色动态生成 TabBar 列表
-const tabList = computed(() => {
-  if (userRole.value === 'provider') {
-    return providerTabItemsForRole(providerRole.value);
-  } else {
-    return [
-      { icon: 'home', text: '首页', path: '/pages/index/index' },
-      { icon: 'person', text: '我的', path: '/pages/mine/mine' }
-    ];
+// 根据用户角色决定跳转路径
+const getHomePath = () => {
+  const userRole = uni.getStorageSync('userRole')
+  if (userRole === 'provider') {
+    return '/pages/provider/workbench'
   }
-});
+  return '/pages/index/index'
+}
 
-const switchTab = (index: number, path: string) => {
-  if (index === currentIndex.value) return;
-  
-  currentIndex.value = index;
-  uni.redirectTo({ url: path });
-};
+const getMinePath = () => {
+  // 统一使用 pages/mine/mine，页面内部根据角色显示不同内容
+  return '/pages/mine/mine'
+}
+
+const switchTab = (index: number) => {
+  if (index === currentIndex.value) return
+
+  currentIndex.value = index
+
+  const path = index === 0 ? getHomePath() : getMinePath()
+  uni.redirectTo({ url: path })
+}
 </script>
 
 <style scoped>
@@ -73,6 +83,7 @@ const switchTab = (index: number, path: string) => {
   z-index: 1000;
   padding-bottom: env(safe-area-inset-bottom);
 }
+
 .tab-item {
   flex: 1;
   display: flex;
@@ -81,13 +92,15 @@ const switchTab = (index: number, path: string) => {
   justify-content: center;
   gap: 2px;
 }
+
 .tab-text {
   font-size: 11px;
   color: #999;
   margin-top: 2px;
 }
+
 .tab-item.active .tab-text {
-  color: #1e2023;
+  color: #000;
   font-weight: bold;
 }
 </style>

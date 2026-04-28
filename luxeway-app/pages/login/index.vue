@@ -1,667 +1,439 @@
 <template>
-  <view class="login-container" :style="{ paddingTop: statusBarHeight + 'px' }">
-    <!-- 背景装饰 -->
-    <view class="bg-decoration">
-      <view class="circle circle-1"></view>
-      <view class="circle circle-2"></view>
-    </view>
-
+  <view class="login-container">
     <!-- Logo 区域 -->
     <view class="logo-section">
       <view class="logo">
-        <text class="logo-icon">🚗</text>
+        <text class="logo-text">LW</text>
       </view>
-      <text class="app-name">LuxeWay 悦途</text>
-      <text class="app-slogan">高端出行，尊贵体验</text>
+      <text class="app-name">LuxeWay</text>
+      <text class="app-slogan">高端出行服务平台</text>
     </view>
 
-    <!-- 登录表单 -->
-    <view class="form-section">
-      <view class="form-tabs">
-        <view
-          class="tab-item"
-          :class="{ active: loginType === 'password' }"
-          @click="switchLoginType('password')"
-        >
-          <text>密码登录</text>
-        </view>
-        <view
-          class="tab-item"
-          :class="{ active: loginType === 'code' }"
-          @click="switchLoginType('code')"
-        >
-          <text>验证码登录</text>
-        </view>
+    <!-- 登录模式切换 -->
+    <view class="login-tabs">
+      <view class="tab" :class="{ active: loginMode === 'wechat' }" @click="loginMode = 'wechat'">
+        <text class="tab-text">微信登录</text>
       </view>
-
-      <!-- 密码登录表单 -->
-      <view v-if="loginType === 'password'" class="form-content">
-        <view class="form-item">
-          <view class="input-wrapper">
-            <uni-icons type="person" size="18" color="#999"></uni-icons>
-            <input
-              class="form-input"
-              v-model="passwordForm.account"
-              placeholder="请输入手机号/用户名"
-              placeholder-class="input-placeholder"
-            />
-          </view>
-        </view>
-
-        <view class="form-item">
-          <view class="input-wrapper">
-            <uni-icons type="locked" size="18" color="#999"></uni-icons>
-            <input
-              class="form-input"
-              v-model="passwordForm.password"
-              placeholder="请输入密码"
-              placeholder-class="input-placeholder"
-              :password="!showPassword"
-            />
-            <uni-icons
-              :type="showPassword ? 'eye' : 'eye-slash'"
-              size="18"
-              color="#999"
-              @click="showPassword = !showPassword"
-            ></uni-icons>
-          </view>
-        </view>
-
-        <view class="form-options">
-          <view class="checkbox-wrapper" @click="passwordForm.remember = !passwordForm.remember">
-            <view class="checkbox" :class="{ checked: passwordForm.remember }">
-              <uni-icons v-if="passwordForm.remember" type="checkmarkempty" size="14" color="#fff"></uni-icons>
-            </view>
-            <text class="checkbox-label">记住密码</text>
-          </view>
-        </view>
-      </view>
-
-      <!-- 验证码登录表单 -->
-      <view v-else class="form-content">
-        <view class="form-item">
-          <view class="input-wrapper">
-            <uni-icons type="phone" size="18" color="#999"></uni-icons>
-            <input
-              class="form-input"
-              v-model="codeForm.phone"
-              placeholder="请输入手机号"
-              placeholder-class="input-placeholder"
-              type="number"
-              maxlength="11"
-            />
-          </view>
-        </view>
-
-        <view class="form-item">
-          <view class="input-wrapper code-wrapper">
-            <uni-icons type="email" size="18" color="#999"></uni-icons>
-            <input
-              class="form-input"
-              v-model="codeForm.code"
-              placeholder="请输入验证码"
-              placeholder-class="input-placeholder"
-              type="number"
-              maxlength="6"
-            />
-            <button
-              class="code-btn"
-              :class="{ disabled: countdown > 0 }"
-              @click="sendCode"
-              :disabled="countdown > 0"
-            >
-              {{ countdown > 0 ? `${countdown}s` : '获取验证码' }}
-            </button>
-          </view>
-        </view>
-      </view>
-
-      <!-- 登录按钮 -->
-      <button class="login-btn" @click="handleLogin" :loading="loading">
-        {{ loading ? '登录中...' : '登录' }}
-      </button>
-
-      <!-- 注册链接 -->
-      <view class="register-link">
-        <text class="link-text">还没有账号？</text>
-        <text class="link-action" @click="goToRegister">立即注册</text>
+      <view class="tab" :class="{ active: loginMode === 'phone' }" @click="loginMode = 'phone'">
+        <text class="tab-text">手机号登录</text>
       </view>
     </view>
 
-    <!-- 演示账号提示 -->
-    <view class="demo-accounts">
-      <view class="demo-title">演示账号（点击直接填充）</view>
-      <view class="demo-list">
-        <view class="demo-item" @click="fillDemo('passenger')">
-          <view class="demo-info">
-            <text class="demo-name">普通用户</text>
-            <text class="demo-account">user / 123456</text>
-          </view>
-          <uni-icons type="right" size="14" color="#999"></uni-icons>
-        </view>
-        <view class="demo-item" @click="fillDemo('provider')">
-          <view class="demo-info">
-            <text class="demo-name">商务接待</text>
-            <text class="demo-account">provider / 123456</text>
-          </view>
-          <uni-icons type="right" size="14" color="#999"></uni-icons>
-        </view>
+    <!-- 微信登录 -->
+    <view class="login-content" v-if="loginMode === 'wechat'">
+      <view class="wechat-section">
+        <text class="wechat-desc">使用微信账号快速登录</text>
+        <button class="wechat-btn" @click="handleWechatLogin">
+          <uni-icons type="weixin" size="24" color="#fff"></uni-icons>
+          <text class="wechat-btn-text">微信一键登录</text>
+        </button>
       </view>
+    </view>
+
+    <!-- 手机号登录 -->
+    <view class="login-content" v-if="loginMode === 'phone'">
+      <view class="form-section">
+        <view class="form-item">
+          <text class="form-label">手机号</text>
+          <input class="form-input" v-model="phoneForm.phone" type="number" placeholder="请输入手机号" maxlength="11" />
+        </view>
+        <view class="form-item">
+          <text class="form-label">密码</text>
+          <input class="form-input" v-model="phoneForm.password" type="password" placeholder="请输入密码" />
+        </view>
+        <button class="submit-btn" :disabled="!canPhoneLogin" @click="handlePhoneLogin">
+          {{ loading ? '登录中...' : '登录' }}
+        </button>
+      </view>
+    </view>
+
+    <!-- 协议 -->
+    <view class="agreement">
+      <view class="agreement-check" @click="agreed = !agreed">
+        <view class="checkbox" :class="{ checked: agreed }">
+          <uni-icons v-if="agreed" type="checkmarkempty" size="12" color="#fff"></uni-icons>
+        </view>
+        <text class="agreement-text">我已阅读并同意</text>
+      </view>
+      <text class="agreement-link" @click="showAgreement('user')">《用户协议》</text>
+      <text class="agreement-text">和</text>
+      <text class="agreement-link" @click="showAgreement('privacy')">《隐私政策》</text>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue'
 
-// 获取状态栏高度
-const systemInfo = uni.getSystemInfoSync();
-const statusBarHeight = ref(systemInfo.statusBarHeight || 0);
+const SUPABASE_URL = 'https://qcsmavxqjofrhrdwgkpt.supabase.co'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjc21hdnhxam9mcmhyZHdna3B0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3OTU2OTUsImV4cCI6MjA5MTM3MTY5NX0.zM4mVvvZAylQIXZFrnzaSAy_MGqTvR3hrSWfSSP8xRQ'
 
-// 登录方式：password-密码登录, code-验证码登录
-const loginType = ref('password');
-const loading = ref(false);
-const showPassword = ref(false);
-const countdown = ref(0);
+const loginMode = ref<'wechat' | 'phone'>('wechat')
+const loading = ref(false)
+const agreed = ref(false)
 
-// 密码登录表单
-const passwordForm = ref({
-  account: '',
-  password: '',
-  remember: false
-});
-
-// 验证码登录表单
-const codeForm = ref({
+const phoneForm = ref({
   phone: '',
-  code: ''
-});
+  password: ''
+})
 
-// Mock 用户数据
-const mockUsers = [
-  {
-    id: 1,
-    account: 'user',
-    password: '123456',
-    phone: '13800138000',
-    role: 'passenger', // 普通用户
-    userInfo: {
-      nickname: '张三',
-      avatar: '',
-      balance: 998.5
-    }
-  },
-  {
-    id: 2,
-    account: 'provider',
-    password: '123456',
-    phone: '13900139000',
-    role: 'provider', // 商务接待公司
-    userInfo: {
-      companyName: 'LuxeWay 商务接待',
-      nickname: '商家用户',
-      avatar: ''
-    }
-  }
-];
+const canPhoneLogin = computed(() => {
+  return phoneForm.value.phone.length === 11 &&
+         phoneForm.value.password.length >= 6 &&
+         agreed.value &&
+         !loading.value
+})
 
 onMounted(() => {
   // 检查是否已登录
-  const token = uni.getStorageSync('token');
-  const userRole = uni.getStorageSync('userRole');
-  // 注释掉自动跳转，方便测试登录页面
-  // if (token && userRole) {
-  //   navigateToHome(userRole);
-  // }
-
-  // 检查记住的密码
-  const savedAccount = uni.getStorageSync('savedAccount');
-  if (savedAccount) {
-    passwordForm.value.account = savedAccount.account;
-    passwordForm.value.password = savedAccount.password;
-    passwordForm.value.remember = true;
+  const userProfile = uni.getStorageSync('userProfile')
+  const userRole = uni.getStorageSync('userRole')
+  if (userProfile && userRole) {
+    navigateToHome(userRole)
   }
-});
+})
 
-// 切换登录方式
-const switchLoginType = (type: string) => {
-  loginType.value = type;
-};
-
-// 发送验证码
-const sendCode = () => {
-  if (!codeForm.value.phone) {
-    uni.showToast({ title: '请输入手机号', icon: 'none' });
-    return;
-  }
-  if (!/^1\d{10}$/.test(codeForm.value.phone)) {
-    uni.showToast({ title: '请输入正确的手机号', icon: 'none' });
-    return;
+// 微信登录（直接调用，无弹窗）
+const handleWechatLogin = async () => {
+  if (!agreed.value) {
+    uni.showToast({ title: '请先同意用户协议', icon: 'none' })
+    return
   }
 
-  // 模拟发送验证码
-  uni.showToast({ title: '验证码已发送', icon: 'success' });
-  countdown.value = 60;
-  const timer = setInterval(() => {
-    countdown.value--;
-    if (countdown.value <= 0) {
-      clearInterval(timer);
+  loading.value = true
+  uni.showLoading({ title: '登录中...' })
+
+  try {
+    // 获取微信登录 code
+    const loginRes = await uni.login()
+    if (!loginRes.code) {
+      throw new Error('获取微信登录凭证失败')
     }
-  }, 1000);
-};
 
-// 填充演示账号
-const fillDemo = (type: string) => {
-  loginType.value = 'password';
-  if (type === 'passenger') {
-    passwordForm.value.account = 'user';
-    passwordForm.value.password = '123456';
-  } else if (type === 'provider') {
-    passwordForm.value.account = 'provider';
-    passwordForm.value.password = '123456';
-  }
-};
+    console.log('微信登录 code:', loginRes.code)
 
-// 处理登录
-const handleLogin = () => {
-  if (loginType.value === 'password') {
-    handlePasswordLogin();
-  } else {
-    handleCodeLogin();
-  }
-};
-
-// 密码登录
-const handlePasswordLogin = () => {
-  const { account, password } = passwordForm.value;
-
-  if (!account) {
-    uni.showToast({ title: '请输入账号', icon: 'none' });
-    return;
-  }
-  if (!password) {
-    uni.showToast({ title: '请输入密码', icon: 'none' });
-    return;
-  }
-
-  loading.value = true;
-
-  // 模拟登录请求
-  setTimeout(() => {
-    const user = mockUsers.find(u => u.account === account && u.password === password);
-
-    if (user) {
-      // 保存登录信息
-      const token = `mock_token_${user.id}_${Date.now()}`;
-      uni.setStorageSync('token', token);
-      uni.setStorageSync('userId', user.id);
-      uni.setStorageSync('userRole', user.role);
-      uni.setStorageSync('userInfo', user.userInfo);
-
-      // 记住密码
-      if (passwordForm.value.remember) {
-        uni.setStorageSync('savedAccount', { account, password });
-      } else {
-        uni.removeStorageSync('savedAccount');
+    // 调用后端进行微信登录
+    const res = await uni.request({
+      url: `${SUPABASE_URL}/functions/v1/wechat-login-v2`,
+      method: 'POST',
+      data: { code: loginRes.code },
+      header: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json'
       }
+    })
 
-      loading.value = false;
-      uni.showToast({ title: '登录成功', icon: 'success' });
+    console.log('=== 微信登录响应 ===')
+    console.log('success:', (res.data as any).success)
 
-      // 跳转到对应首页
-      setTimeout(() => {
-        navigateToHome(user.role);
-      }, 500);
+    const result = res.data as any
+
+    if (result.success && result.user) {
+      const accessToken = result.session?.access_token || result.accessToken || ''
+      const refreshToken = result.session?.refresh_token || result.refreshToken || ''
+
+      console.log('保存 accessToken:', accessToken.length, '字符')
+
+      uni.setStorageSync('accessToken', accessToken)
+      uni.setStorageSync('refreshToken', refreshToken)
+      uni.setStorageSync('userProfile', result.user)
+
+      // 多角色用户默认乘客模式
+      const roles = result.user.roles || []
+      uni.setStorageSync('userRoles', roles)
+      uni.setStorageSync('userRole', 'passenger')  // 默认乘客模式
+      uni.setStorageSync('userPermissions', result.user.permissions || [])
+
+      uni.hideLoading()
+      uni.showToast({ title: result.isNewUser ? '注册成功' : '登录成功', icon: 'success' })
+      setTimeout(() => navigateToHome(roles, result.user.display_role), 500)
     } else {
-      loading.value = false;
-      uni.showToast({ title: '账号或密码错误', icon: 'none' });
+      uni.hideLoading()
+      uni.showToast({ title: result.error || '登录失败', icon: 'none' })
     }
-  }, 1000);
-};
-
-// 验证码登录
-const handleCodeLogin = () => {
-  const { phone, code } = codeForm.value;
-
-  if (!phone) {
-    uni.showToast({ title: '请输入手机号', icon: 'none' });
-    return;
+  } catch (error: any) {
+    uni.hideLoading()
+    console.error('微信登录异常:', error)
+    uni.showToast({ title: '登录失败，请重试', icon: 'none' })
+  } finally {
+    loading.value = false
   }
-  if (!/^1\d{10}$/.test(phone)) {
-    uni.showToast({ title: '请输入正确的手机号', icon: 'none' });
-    return;
-  }
-  if (!code) {
-    uni.showToast({ title: '请输入验证码', icon: 'none' });
-    return;
-  }
-  if (code !== '123456') { // 模拟验证码
-    uni.showToast({ title: '验证码错误', icon: 'none' });
-    return;
-  }
+}
 
-  loading.value = true;
+// 手机号密码登录
+const handlePhoneLogin = async () => {
+  if (!canPhoneLogin.value) return
 
-  // 模拟登录请求
-  setTimeout(() => {
-    const user = mockUsers.find(u => u.phone === phone);
+  loading.value = true
+  uni.showLoading({ title: '登录中...' })
 
-    if (user) {
-      // 保存登录信息
-      const token = `mock_token_${user.id}_${Date.now()}`;
-      uni.setStorageSync('token', token);
-      uni.setStorageSync('userId', user.id);
-      uni.setStorageSync('userRole', user.role);
-      uni.setStorageSync('userInfo', user.userInfo);
+  try {
+    // 调用 phone-login 云函数（与 Web 端共用）
+    const res = await uni.request({
+      url: `${SUPABASE_URL}/functions/v1/phone-login`,
+      method: 'POST',
+      data: {
+        phone: phoneForm.value.phone,
+        password: phoneForm.value.password
+      },
+      header: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json'
+      }
+    })
 
-      loading.value = false;
-      uni.showToast({ title: '登录成功', icon: 'success' });
+    const result = res.data as any
 
-      setTimeout(() => {
-        navigateToHome(user.role);
-      }, 500);
+    if (result.success && result.user) {
+      // 保存 token
+      const accessToken = result.session?.access_token || ''
+      const refreshToken = result.session?.refresh_token || ''
+      uni.setStorageSync('accessToken', accessToken)
+      uni.setStorageSync('refreshToken', refreshToken)
+
+      // 保存用户信息
+      uni.setStorageSync('userProfile', result.user)
+      const roles = result.user.roles || []
+      uni.setStorageSync('userRoles', roles)
+      uni.setStorageSync('userRole', 'passenger')  // 默认乘客模式
+      uni.setStorageSync('userPermissions', result.user.permissions || [])
+
+      uni.hideLoading()
+      uni.showToast({ title: '登录成功', icon: 'success' })
+      setTimeout(() => navigateToHome(roles, result.user.display_role), 500)
     } else {
-      loading.value = false;
-      uni.showToast({ title: '该手机号未注册', icon: 'none' });
+      uni.hideLoading()
+      uni.showToast({ title: result.error || '登录失败', icon: 'none' })
     }
-  }, 1000);
-};
-
-// 根据角色跳转到对应首页
-const navigateToHome = (role: string) => {
-  if (role === 'provider') {
-    uni.reLaunch({ url: '/pages/provider/workbench' });
-  } else {
-    uni.reLaunch({ url: '/pages/index/index' });
+  } catch (error) {
+    uni.hideLoading()
+    console.error('手机号登录失败:', error)
+    uni.showToast({ title: '登录失败，请重试', icon: 'none' })
+  } finally {
+    loading.value = false
   }
-};
+}
 
-// 跳转注册页面
-const goToRegister = () => {
-  uni.showToast({ title: '注册功能开发中', icon: 'none' });
-};
+// 显示协议
+const showAgreement = (type: 'user' | 'privacy') => {
+  uni.navigateTo({ url: `/pages/common/agreement?type=${type}` })
+}
+
+// 根据角色跳转到对应首页（多角色用户默认乘客首页）
+const navigateToHome = (roles: any[], displayRole: string) => {
+  // 管理员角色优先
+  const hasAdminRole = roles.some((r: any) => r.name === 'admin')
+  if (hasAdminRole && displayRole === 'admin') {
+    uni.reLaunch({ url: '/pages/admin/index' })
+    return
+  }
+
+  // 多角色用户或有商家角色，默认跳转到乘客首页
+  // 用户可以在"我的"页面切换到商家模式
+  uni.reLaunch({ url: '/pages/index/index' })
+}
 </script>
 
 <style scoped>
 .login-container {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  position: relative;
-  overflow: hidden;
-}
-
-/* 背景装饰 */
-.bg-decoration {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  overflow: hidden;
-}
-
-.circle {
-  position: absolute;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.circle-1 {
-  width: 300px;
-  height: 300px;
-  top: -100px;
-  right: -50px;
-}
-
-.circle-2 {
-  width: 200px;
-  height: 200px;
-  bottom: 100px;
-  left: -50px;
+  background: #fff;
+  padding: 80rpx 48rpx;
 }
 
 /* Logo 区域 */
 .logo-section {
   text-align: center;
-  padding-top: 100px;
-  padding-bottom: 40px;
-  position: relative;
-  z-index: 1;
+  margin-bottom: 80rpx;
 }
 
 .logo {
-  width: 80px;
-  height: 80px;
-  background: rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(10px);
-  border-radius: 20px;
-  margin: 0 auto 20px;
+  width: 120rpx;
+  height: 120rpx;
+  background: #000;
+  border-radius: 24rpx;
+  margin: 0 auto 24rpx;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.logo-icon {
-  font-size: 40px;
+.logo-text {
+  font-size: 48rpx;
+  color: #fff;
+  font-weight: 700;
 }
 
 .app-name {
   display: block;
-  font-size: 28px;
-  font-weight: bold;
-  color: #fff;
-  margin-bottom: 8px;
+  font-size: 44rpx;
+  font-weight: 600;
+  color: #000;
+  margin-bottom: 12rpx;
 }
 
 .app-slogan {
   display: block;
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.8);
-}
-
-/* 表单区域 */
-.form-section {
-  background: #fff;
-  border-radius: 24px 24px 0 0;
-  padding: 30px 20px;
-  min-height: 60vh;
-  position: relative;
-  z-index: 1;
-}
-
-.form-tabs {
-  display: flex;
-  margin-bottom: 30px;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.tab-item {
-  flex: 1;
-  text-align: center;
-  padding: 12px 0;
-  font-size: 15px;
+  font-size: 28rpx;
   color: #666;
-  position: relative;
 }
 
-.tab-item.active {
-  color: #667eea;
-  font-weight: bold;
-}
-
-.tab-item.active::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 40px;
-  height: 3px;
-  background: #667eea;
-  border-radius: 2px;
-}
-
-.form-content {
-  margin-bottom: 20px;
-}
-
-.form-item {
-  margin-bottom: 20px;
-}
-
-.input-wrapper {
+/* 登录模式切换 */
+.login-tabs {
   display: flex;
-  align-items: center;
-  background: #f5f7fa;
-  border-radius: 12px;
-  padding: 14px 16px;
-  gap: 10px;
+  background: #f5f5f5;
+  border-radius: 16rpx;
+  padding: 8rpx;
+  margin-bottom: 48rpx;
 }
 
-.form-input {
+.tab {
   flex: 1;
-  font-size: 15px;
-  color: #333;
-}
-
-.input-placeholder {
-  color: #999;
-}
-
-.code-wrapper {
-  padding-right: 12px;
-}
-
-.code-btn {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff;
-  font-size: 13px;
-  padding: 6px 14px;
-  border-radius: 8px;
-  border: none;
-  height: auto;
-  line-height: normal;
-  white-space: nowrap;
-}
-
-.code-btn::after {
-  border: none;
-}
-
-.code-btn.disabled {
-  opacity: 0.6;
-}
-
-.form-options {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 10px;
-}
-
-.checkbox-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.checkbox {
-  width: 18px;
-  height: 18px;
-  border: 2px solid #ddd;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  padding: 24rpx;
+  text-align: center;
+  border-radius: 12rpx;
   transition: all 0.2s;
 }
 
-.checkbox.checked {
-  background: #667eea;
-  border-color: #667eea;
+.tab.active {
+  background: #000;
 }
 
-.checkbox-label {
-  font-size: 13px;
+.tab-text {
+  font-size: 28rpx;
   color: #666;
 }
 
-/* 登录按钮 */
-.login-btn {
-  width: 100%;
-  height: 50px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+.tab.active .tab-text {
   color: #fff;
-  font-size: 16px;
-  font-weight: bold;
-  border-radius: 25px;
-  border: none;
-  margin-bottom: 20px;
+  font-weight: 500;
 }
 
-.login-btn::after {
-  border: none;
+/* 登录内容 */
+.login-content {
+  min-height: 400rpx;
 }
 
-/* 注册链接 */
-.register-link {
+/* 微信登录 */
+.wechat-section {
   text-align: center;
-  font-size: 14px;
+  padding: 48rpx 0;
 }
 
-.link-text {
+.wechat-desc {
+  font-size: 28rpx;
+  color: #666;
+  margin-bottom: 32rpx;
+  display: block;
+}
+
+.wechat-btn {
+  width: 100%;
+  height: 96rpx;
+  background: #07c160;
+  color: #fff;
+  font-size: 32rpx;
+  font-weight: 500;
+  border-radius: 48rpx;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16rpx;
+}
+
+.wechat-btn::after {
+  border: none;
+}
+
+.wechat-btn-text {
+  font-size: 32rpx;
+}
+
+/* 表单 */
+.form-section {
+  padding: 0;
+}
+
+.form-item {
+  margin-bottom: 32rpx;
+}
+
+.form-label {
+  font-size: 28rpx;
+  color: #666;
+  display: block;
+  margin-bottom: 16rpx;
+}
+
+.form-input {
+  background: #f5f5f5;
+  border-radius: 12rpx;
+  padding: 28rpx 32rpx;
+  font-size: 32rpx;
+  color: #000;
+  width: 100%;
+}
+
+.submit-btn {
+  width: 100%;
+  height: 96rpx;
+  background: #000;
+  color: #fff;
+  font-size: 32rpx;
+  font-weight: 500;
+  border-radius: 48rpx;
+  border: none;
+  margin-top: 16rpx;
+}
+
+.submit-btn::after {
+  border: none;
+}
+
+.submit-btn[disabled] {
+  background: #ccc;
+}
+
+/* 协议 */
+.agreement {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
+  margin-top: 48rpx;
+  padding-top: 32rpx;
+  border-top: 2rpx solid #f0f0f0;
+}
+
+.agreement-check {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+}
+
+.checkbox {
+  width: 32rpx;
+  height: 32rpx;
+  border-radius: 6rpx;
+  border: 2rpx solid #ccc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.checkbox.checked {
+  background: #000;
+  border-color: #000;
+}
+
+.agreement-text {
+  font-size: 26rpx;
   color: #666;
 }
 
-.link-action {
-  color: #667eea;
-  font-weight: 500;
-  margin-left: 4px;
-}
-
-/* 演示账号 */
-.demo-accounts {
-  margin-top: 30px;
-  padding: 20px;
-  background: #f8f9fa;
-  border-radius: 12px;
-}
-
-.demo-title {
-  font-size: 13px;
-  color: #999;
-  margin-bottom: 15px;
-}
-
-.demo-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.demo-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #fff;
-  padding: 12px 16px;
-  border-radius: 10px;
-}
-
-.demo-info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.demo-name {
-  font-size: 14px;
-  color: #333;
-  font-weight: 500;
-}
-
-.demo-account {
-  font-size: 12px;
-  color: #999;
+.agreement-link {
+  font-size: 26rpx;
+  color: #000;
 }
 </style>

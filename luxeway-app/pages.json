@@ -1,6 +1,13 @@
 {
 	"pages": [
 		{
+			"path": "pages/index/index",
+			"style": {
+				"navigationBarTitleText": "LuxeWay",
+				"navigationStyle": "custom"
+			}
+		},
+		{
 			"path": "pages/login/index",
 			"style": {
 				"navigationBarTitleText": "登录",
@@ -8,10 +15,21 @@
 			}
 		},
 		{
-			"path": "pages/index/index",
+			"path": "pages/admin/index",
 			"style": {
-				"navigationBarTitleText": "LuxeWay",
-				"navigationStyle": "custom"
+				"navigationBarTitleText": "平台管理"
+			}
+		},
+		{
+			"path": "pages/admin/review",
+			"style": {
+				"navigationBarTitleText": "商家审核"
+			}
+		},
+		{
+			"path": "pages/merchant/register",
+			"style": {
+				"navigationBarTitleText": "车主入驻申请"
 			}
 		},
 		{
@@ -29,7 +47,13 @@
 		{
 			"path": "pages/passenger/bid_list",
 			"style": {
-				"navigationBarTitleText": "查看报价"
+				"navigationBarTitleText": "我的行程"
+			}
+		},
+		{
+			"path": "pages/passenger/bid_detail",
+			"style": {
+				"navigationBarTitleText": "报价详情"
 			}
 		},
 		{
@@ -59,6 +83,12 @@
 			}
 		},
 		{
+			"path": "pages/provider/fleet_manage",
+			"style": {
+				"navigationBarTitleText": "车队管理"
+			}
+		},
+		{
 			"path": "pages/provider/my_fleet/index",
 			"style": {
 				"navigationBarTitleText": "我的车队"
@@ -68,6 +98,30 @@
 			"path": "pages/provider/driver_management/index",
 			"style": {
 				"navigationBarTitleText": "司机管理"
+			}
+		},
+		{
+			"path": "pages/provider/order_detail",
+			"style": {
+				"navigationBarTitleText": "订单详情"
+			}
+		},
+		{
+			"path": "pages/passenger/orders",
+			"style": {
+				"navigationBarTitleText": "我的订单"
+			}
+		},
+		{
+			"path": "pages/provider/orders",
+			"style": {
+				"navigationBarTitleText": "我的订单"
+			}
+		},
+		{
+			"path": "pages/common/agreement",
+			"style": {
+				"navigationBarTitleText": "协议"
 			}
 		}
 	],

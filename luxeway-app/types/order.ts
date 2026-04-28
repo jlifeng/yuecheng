@@ -1,40 +1,46 @@
-export type PassengerOrderStatus =
-  | 'PENDING_ASSIGN'
-  | 'ASSIGNED'
-  | 'ON_THE_WAY'
-  | 'ARRIVED_PICKUP'
-  | 'WAITING_PASSENGER'
-  | 'PASSENGER_BOARDED'
-  | 'ARRIVING_DESTINATION'
-  | 'ARRIVED_DESTINATION'
-  | 'PENDING_FEE_CONFIRM'
-  | 'COMPLETED'
-  | 'CANCELLED'
-  | 'ABNORMAL_PROCESSING'
+export type DemandStatus =
+  | 'PENDING'    // 待发布
+  | 'BIDDING'    // 等待报价
+  | 'ACCEPTED'   // 已确认（乘客选择了报价）
+  | 'IN_PROGRESS' // 进行中
+  | 'COMPLETED'  // 已完成
+  | 'CANCELLED'  // 已取消
 
 export interface PassengerTimelineItem {
-  code: PassengerOrderStatus
+  time?: string
   title: string
-  description: string
+  desc?: string
+  status: 'completed' | 'active' | 'pending'
 }
 
 export interface PassengerFeeSummary {
   baseFare: number
-  waitingFee: number
   tollFee: number
   parkingFee: number
   otherFee: number
-  totalAmount: number
+  discount: number
+  total: number
 }
 
 export interface PassengerOrderDetail {
   id: string
-  status: PassengerOrderStatus
+  status: string
+  statusDesc?: string
+  startAddress?: string
+  endAddress?: string
+  earliestDeparture?: string
+  latestDeparture?: string
+  passengerCount?: number
+  requirements?: string
+  price: number
+  carModel: string
+  carImage?: string
+  message?: string
+  providerName: string
   driverName: string
   driverPhone: string
-  carModel: string
   plateNumber: string
+  hasInvoice: boolean
   timeline: PassengerTimelineItem[]
   feeSummary?: PassengerFeeSummary
-  hasInvoice: boolean
 }
