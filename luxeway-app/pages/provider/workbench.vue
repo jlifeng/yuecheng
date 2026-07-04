@@ -67,7 +67,6 @@
     <!-- 滚动列表区域 - 自动填充剩余空间 -->
     <scroll-view scroll-y class="list-area" @scrolltolower="loadMoreData">
       <view v-if="displayOrders.length === 0 && !isLoadingMore" class="empty">
-        <text class="empty-icon">📋</text>
         <text class="empty-text">{{ emptyText }}</text>
       </view>
 
@@ -166,6 +165,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
+import { onShow } from '@dcloudio/uni-app'
 import CustomTabBar from '@/components/CustomTabBar.vue';
 import md5 from '@/utils/md5';
 import { providerService, fetchPendingDemands, fetchQuotedBids, fetchOngoingOrders, type WorkbenchTab } from '@/services/provider';
@@ -820,6 +820,14 @@ onMounted(async () => {
   // 自动定位城市
   locateCity();
 });
+
+// 每次显示页面时刷新当前 Tab 数据（从报价页返回时触发）
+onShow(() => {
+  // 避免首次加载重复（onMounted 已处理）
+  if (pendingDemands.value.length > 0 || quotedBids.value.length > 0 || ongoingOrders.value.length > 0) {
+    loadTabData(currentTab.value);
+  }
+});
 </script>
 
 <style scoped>
@@ -1111,12 +1119,6 @@ onMounted(async () => {
 .empty {
   text-align: center;
   padding: 80px 20px;
-}
-
-.empty-icon {
-  font-size: 60px;
-  display: block;
-  margin-bottom: 15px;
 }
 
 .empty-text {

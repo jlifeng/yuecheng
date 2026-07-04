@@ -112,7 +112,9 @@
           </view>
           <view class="trip-card" v-for="trip in ongoingTrips" :key="trip.id" @click="goToTripDetail(trip.id)">
             <view class="trip-card-header">
-              <view class="trip-status-badge" :class="trip.statusClass">{{ trip.statusDesc }}</view>
+              <view class="trip-status-badge" :class="trip.statusClass">
+                {{ trip.bidCount > 0 && trip.status === 'BIDDING' ? `已有${trip.bidCount}个报价` : trip.statusDesc }}
+              </view>
               <uni-icons type="forward" size="16" color="#000"></uni-icons>
             </view>
             <view class="trip-card-body">
@@ -158,7 +160,6 @@
 
           <!-- 无订单时显示提示 -->
           <view v-else class="owner-empty">
-            <view class="empty-icon">🚗</view>
             <text class="empty-title">暂无进行中的订单</text>
             <text class="empty-desc">前往工作台查看待报价需求</text>
             <button class="empty-btn" @click="goToWorkbench">前往工作台</button>
@@ -249,7 +250,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onShow, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
 import md5 from '@/utils/md5'
 import CustomTabBar from '@/components/CustomTabBar.vue'
 import { useDemandForm } from '@/composables/useDemandForm'
@@ -420,16 +422,42 @@ const loadMyTrips = async () => {
       .filter(d => activeStatuses.includes(d.status))
       .slice(0, 3)
 
-    ongoingTrips.value = activeDemands.map(d => ({
-      id: d.id,
-      statusDesc: statusDescMap[d.status] || '未知状态',
-      statusClass: statusClassMap[d.status] || 'status-pending',
-      time: formatDemandTime(d.earliest_departure, d.latest_departure),
-      destination: d.end_address,
-      confirmedPrice: null,
-      bidCount: 0,
-      status: d.status
-    }))
+    // 查询每个行程的报价数量
+    const accessToken = uni.getStorageSync('accessToken')
+    const tripsWithBidCount = await Promise.all(
+      activeDemands.map(async (d) => {
+        let bidCount = 0
+        if (d.status === 'BIDDING' && accessToken) {
+          try {
+            const res = await uni.request({
+              url: `${SUPABASE_URL}/rest/v1/bids?demand_id=eq.${d.id}&select=id`,
+              method: 'GET',
+              header: {
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${accessToken}`
+              }
+            })
+            if (res.statusCode === 200 && res.data) {
+              bidCount = (res.data as any[]).length
+            }
+          } catch (e) {
+            console.error('查询报价数量失败', e)
+          }
+        }
+        return {
+          id: d.id,
+          statusDesc: statusDescMap[d.status] || '未知状态',
+          statusClass: statusClassMap[d.status] || 'status-pending',
+          time: formatDemandTime(d.earliest_departure, d.latest_departure),
+          destination: d.end_address,
+          confirmedPrice: null,
+          bidCount,
+          status: d.status
+        }
+      })
+    )
+
+    ongoingTrips.value = tripsWithBidCount
     console.log('ongoingTrips:', ongoingTrips.value)
   } catch (e) {
     console.error('加载行程列表失败', e)
@@ -1163,12 +1191,6 @@ const loadFleetInfo = async (merchantId: string) => {
 .owner-empty {
   text-align: center;
   padding: 80rpx 32rpx;
-}
-
-.owner-empty .empty-icon {
-  font-size: 80rpx;
-  display: block;
-  margin-bottom: 24rpx;
 }
 
 .owner-empty .empty-title {

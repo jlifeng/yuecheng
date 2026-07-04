@@ -6,12 +6,33 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // Tab 类型定义
 export type WorkbenchTab = 'pending' | 'quoted' | 'ongoing'
 
+// JWT 过期处理：清除登录状态并跳转到登录页
+const handleJwtExpired = () => {
+  console.log('JWT 已过期，跳转到登录页')
+  uni.removeStorageSync('accessToken')
+  uni.removeStorageSync('refreshToken')
+  uni.removeStorageSync('userProfile')
+  uni.removeStorageSync('userRoles')
+  uni.removeStorageSync('userRole')
+  uni.removeStorageSync('userPermissions')
+  uni.showToast({ title: '登录已过期，请重新登录', icon: 'none' })
+  setTimeout(() => {
+    uni.reLaunch({ url: '/pages/login/index' })
+  }, 1500)
+}
+
+// 检查响应是否为 JWT 过期
+const isJwtExpired = (statusCode: number, data: any): boolean => {
+  return statusCode === 401 && data?.code === 'PGRST303'
+}
+
 export interface ProviderBidPayload {
   demandId: string
   price: number
   carModel?: string
   carImage?: string
   message?: string
+  vehicleId?: string  // 车辆ID，用于时间冲突校验
 }
 
 export interface WorkbenchData {
@@ -145,7 +166,7 @@ export const fetchWorkbench = async (): Promise<WorkbenchData> => {
   }
 }
 
-// 获取待报价的需求列表（支持分页）
+// 获取待报价的需求列表（支持分页，排除已报价的需求）
 export const fetchPendingDemands = async (
   page: number = 1,
   pageSize: number = 20
@@ -166,6 +187,29 @@ export const fetchPendingDemands = async (
   const to = from + pageSize - 1
 
   console.log('fetchPendingDemands - 发送请求, page:', page, 'from:', from, 'to:', to)
+
+  // 先查询当前用户已报价的 demand_id 列表
+  let excludedDemandIds: string[] = []
+  if (userProfile?.id) {
+    try {
+      const myBidsRes = await uni.request({
+        url: `${SUPABASE_URL}/rest/v1/bids?provider_id=eq.${userProfile.id}&select=demand_id`,
+        method: 'GET',
+        header: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${accessToken}`
+        }
+      })
+      if (myBidsRes.statusCode === 200 && myBidsRes.data) {
+        excludedDemandIds = (myBidsRes.data as any[]).map((b: any) => b.demand_id)
+        console.log('fetchPendingDemands - 已报价的 demand_id:', excludedDemandIds)
+      }
+    } catch (e) {
+      console.error('查询已报价需求失败', e)
+    }
+  }
+
+  // 查询待报价需求
   const res = await uni.request({
     url: `${SUPABASE_URL}/rest/v1/demands?status=eq.BIDDING&select=*&order=created_at.desc&offset=${from}&limit=${pageSize}`,
     method: 'GET',
@@ -178,9 +222,20 @@ export const fetchPendingDemands = async (
 
   console.log('fetchPendingDemands - 响应:', res.statusCode, res.data)
 
+  // JWT 过期处理
+  if (isJwtExpired(res.statusCode, res.data)) {
+    handleJwtExpired()
+    return { data: [], hasMore: false }
+  }
+
   if (res.statusCode === 200 && res.data) {
+    // 过滤掉已报价的需求
+    const filteredData = (res.data as any[]).filter(
+      (d: any) => !excludedDemandIds.includes(d.id)
+    )
+    console.log('fetchPendingDemands - 过滤后数量:', filteredData.length, '原数量:', (res.data as any[]).length)
     return {
-      data: res.data as any[],
+      data: filteredData,
       hasMore: (res.data as any[]).length === pageSize
     }
   }
@@ -217,6 +272,12 @@ export const fetchQuotedBids = async (
   })
 
   console.log('fetchQuotedBids - 响应:', res.statusCode, res.data)
+
+  // JWT 过期处理
+  if (isJwtExpired(res.statusCode, res.data)) {
+    handleJwtExpired()
+    return { data: [], hasMore: false }
+  }
 
   if (res.statusCode === 200 && res.data) {
     const data = (res.data as any[]).map(bid => ({
@@ -269,6 +330,12 @@ export const fetchOngoingOrders = async (
   })
 
   console.log('fetchOngoingOrders - 响应:', res.statusCode, res.data)
+
+  // JWT 过期处理
+  if (isJwtExpired(res.statusCode, res.data)) {
+    handleJwtExpired()
+    return { data: [], hasMore: false }
+  }
 
   if (res.statusCode === 200 && res.data) {
     const data = (res.data as any[]).map(bid => ({
@@ -370,6 +437,7 @@ export const submitBid = async (payload: ProviderBidPayload): Promise<{ bidId: s
     demand_id: payload.demandId,
     provider_id: userProfile.id,
     merchant_id: userProfile.merchant_id,
+    vehicle_id: payload.vehicleId || null,
     price: payload.price,
     car_model: payload.carModel || null,
     car_image: payload.carImage || null,

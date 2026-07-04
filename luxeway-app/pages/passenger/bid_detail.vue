@@ -19,7 +19,7 @@
     <!-- 商家信息 -->
     <view class="merchant-card">
       <view class="merchant-header">
-        <text class="merchant-name">{{ bidDetail?.merchants?.name || '商家' }}</text>
+        <text class="merchant-name">{{ bidDetail?.merchants?.company_name || bidDetail?.merchants?.contact_name || '商家' }}</text>
         <view class="merchant-stats">
           <text class="merchant-rating">评分 {{ bidDetail?.merchants?.rating_avg || 4.8 }}</text>
           <text class="merchant-orders">已完成 {{ bidDetail?.merchants?.order_count || 0 }} 单</text>

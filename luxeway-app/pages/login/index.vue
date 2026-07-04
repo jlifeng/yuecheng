@@ -78,10 +78,17 @@ const phoneForm = ref({
 })
 
 const canPhoneLogin = computed(() => {
-  return phoneForm.value.phone.length === 11 &&
+  const result = phoneForm.value.phone.length === 11 &&
          phoneForm.value.password.length >= 6 &&
          agreed.value &&
          !loading.value
+  console.log('canPhoneLogin:', result, {
+    phone: phoneForm.value.phone.length,
+    password: phoneForm.value.password.length,
+    agreed: agreed.value,
+    loading: loading.value
+  })
+  return result
 })
 
 onMounted(() => {
@@ -162,6 +169,7 @@ const handleWechatLogin = async () => {
 
 // 手机号密码登录
 const handlePhoneLogin = async () => {
+  console.log('handlePhoneLogin called, canPhoneLogin:', canPhoneLogin.value, 'loading:', loading.value)
   if (!canPhoneLogin.value) return
 
   loading.value = true
@@ -199,18 +207,19 @@ const handlePhoneLogin = async () => {
       uni.setStorageSync('userPermissions', result.user.permissions || [])
 
       uni.hideLoading()
+      loading.value = false  // 重置状态
       uni.showToast({ title: '登录成功', icon: 'success' })
       setTimeout(() => navigateToHome(roles, result.user.display_role), 500)
     } else {
       uni.hideLoading()
       uni.showToast({ title: result.error || '登录失败', icon: 'none' })
+      loading.value = false  // 确保重置
     }
   } catch (error) {
     uni.hideLoading()
     console.error('手机号登录失败:', error)
     uni.showToast({ title: '登录失败，请重试', icon: 'none' })
-  } finally {
-    loading.value = false
+    loading.value = false  // 确保重置
   }
 }
 

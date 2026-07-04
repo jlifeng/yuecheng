@@ -184,12 +184,20 @@ const driverForm = ref({
 // 权限检查
 const canManage = () => {
   const userProfile = uni.getStorageSync('userProfile')
-  return userProfile?.role === 'merchant_owner' || userProfile?.role === 'merchant_dispatcher'
+  // 检查 roles 数组中是否有商家管理角色
+  const roles = userProfile?.roles || []
+  const hasManageRole = roles.some((r: any) =>
+    r.name === 'merchant_owner' || r.name === 'merchant_dispatcher'
+  )
+  // 兼容旧数据：检查单个 role 字段或 merchant_id
+  return hasManageRole || userProfile?.role === 'merchant_owner' || userProfile?.role === 'merchant_dispatcher' || userProfile?.merchant_id
 }
 
 const isOwner = () => {
   const userProfile = uni.getStorageSync('userProfile')
-  return userProfile?.role === 'merchant_owner'
+  const roles = userProfile?.roles || []
+  const hasOwnerRole = roles.some((r: any) => r.name === 'merchant_owner')
+  return hasOwnerRole || userProfile?.role === 'merchant_owner'
 }
 
 onMounted(() => {

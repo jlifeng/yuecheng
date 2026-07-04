@@ -9,6 +9,26 @@ import { refreshAccessToken } from '@/services/wechatAuth'
 const SUPABASE_URL = 'https://qcsmavxqjofrhrdwgkpt.supabase.co'
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjc21hdnhxam9mcmhyZHdna3B0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3OTU2OTUsImV4cCI6MjA5MTM3MTY5NX0.zM4mVvvZAylQIXZFrnzaSAy_MGqTvR3hrSWfSSP8xRQ'
 
+// JWT 过期处理：清除登录状态并跳转到登录页
+const handleJwtExpired = () => {
+  console.log('JWT 已过期，跳转到登录页')
+  uni.removeStorageSync('accessToken')
+  uni.removeStorageSync('refreshToken')
+  uni.removeStorageSync('userProfile')
+  uni.removeStorageSync('userRoles')
+  uni.removeStorageSync('userRole')
+  uni.removeStorageSync('userPermissions')
+  uni.showToast({ title: '登录已过期，请重新登录', icon: 'none' })
+  setTimeout(() => {
+    uni.reLaunch({ url: '/pages/login/index' })
+  }, 1500)
+}
+
+// 检查响应是否为 JWT 过期
+const isJwtExpired = (statusCode: number, data: any): boolean => {
+  return statusCode === 401 && data?.code === 'PGRST303'
+}
+
 export interface PassengerBid {
   id: string
   providerId: string
@@ -235,6 +255,12 @@ export const fetchMyDemands = async (): Promise<any[]> => {
 
     console.log('fetchMyDemands - statusCode:', res.statusCode, 'data:', JSON.stringify(res.data))
 
+    // JWT 过期处理
+    if (isJwtExpired(res.statusCode, res.data)) {
+      handleJwtExpired()
+      return []
+    }
+
     if (res.statusCode === 200 && res.data) {
       return res.data as any[]
     }
@@ -273,7 +299,8 @@ export const fetchBidList = async (demandId?: string): Promise<PassengerBid[]> =
   const accessToken = uni.getStorageSync('accessToken')
 
   if (!accessToken) {
-    return mockBids // 未登录时返回 mock 数据
+    console.log('fetchBidList: 未登录，返回空数组')
+    return []
   }
 
   // 如果没有指定需求ID，获取最新需求
@@ -281,14 +308,17 @@ export const fetchBidList = async (demandId?: string): Promise<PassengerBid[]> =
   if (!targetDemandId) {
     const latestDemand = await fetchMyLatestDemand()
     if (!latestDemand) {
-      return mockBids // 暂无需求时返回 mock 数据演示
+      console.log('fetchBidList: 暂无需求，返回空数组')
+      return []
     }
     targetDemandId = latestDemand.id
   }
 
-  // 查询报价，关联商家信息
+  console.log('fetchBidList: 查询 demandId =', targetDemandId)
+
+  // 查询报价，关联商家信息（merchants 表使用 company_name 而不是 name）
   const res = await uni.request({
-    url: `${SUPABASE_URL}/rest/v1/bids?demand_id=eq.${targetDemandId}&select=*,merchants(name,rating_avg,order_count)`,
+    url: `${SUPABASE_URL}/rest/v1/bids?demand_id=eq.${targetDemandId}&select=*,merchants(company_name,contact_name,rating_avg,order_count)`,
     method: 'GET',
     header: {
       'apikey': SUPABASE_ANON_KEY,
@@ -296,20 +326,31 @@ export const fetchBidList = async (demandId?: string): Promise<PassengerBid[]> =
     }
   })
 
+  console.log('fetchBidList: API 响应 statusCode =', res.statusCode, 'data =', res.data)
+
+  // JWT 过期处理
+  if (isJwtExpired(res.statusCode, res.data)) {
+    handleJwtExpired()
+    return []
+  }
+
   if (res.statusCode !== 200 || !res.data) {
-    return mockBids
+    console.log('fetchBidList: API 请求失败，返回空数组')
+    return []
   }
 
   const bids = res.data as any[]
   if (bids.length === 0) {
-    return mockBids // 暂无报价时返回 mock 数据演示
+    console.log('fetchBidList: 暂无报价，返回空数组')
+    return []
   }
 
+  console.log('fetchBidList: 找到', bids.length, '个报价')
   return bids.map(bid => ({
     id: bid.id,
     providerId: bid.provider_id,
     merchantId: bid.merchant_id,
-    providerName: bid.merchants?.name || '商家',
+    providerName: bid.merchants?.company_name || bid.merchants?.contact_name || '商家',
     price: Number(bid.price),
     carModel: bid.car_model || '商务车',
     seats: 7,
@@ -329,7 +370,7 @@ export const fetchBidDetail = async (bidId: string): Promise<any> => {
   }
 
   const res = await uni.request({
-    url: `${SUPABASE_URL}/rest/v1/bids?id=eq.${bidId}&select=*,merchants(id,name,contact_phone,rating_avg,order_count,review_status)`,
+    url: `${SUPABASE_URL}/rest/v1/bids?id=eq.${bidId}&select=*,merchants(id,company_name,contact_name,contact_phone,rating_avg,order_count,review_status)`,
     method: 'GET',
     header: {
       'apikey': SUPABASE_ANON_KEY,

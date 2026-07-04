@@ -318,7 +318,8 @@ const loadUserInfo = () => {
   const userProfile = uni.getStorageSync('userProfile')
   if (userProfile) {
     userInfo.value = {
-      nickname: userProfile.name || '',
+      // 优先使用 nickname，如果没有则使用 name
+      nickname: userProfile.nickname || userProfile.name || '',
       phone: userProfile.phone || '',
       avatar_url: userProfile.avatar_url || ''
     }
@@ -393,6 +394,7 @@ const saveProfile = async () => {
       url: `${SUPABASE_URL}/rest/v1/profiles?id=eq.${userProfile.id}`,
       method: 'PATCH',
       data: {
+        nickname: userInfo.value.nickname,
         name: userInfo.value.nickname,
         avatar_url: userInfo.value.avatar_url
       },
@@ -407,6 +409,7 @@ const saveProfile = async () => {
     // 更新本地存储
     uni.setStorageSync('userProfile', {
       ...userProfile,
+      nickname: userInfo.value.nickname,
       name: userInfo.value.nickname,
       avatar_url: userInfo.value.avatar_url
     })
