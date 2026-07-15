@@ -18,9 +18,7 @@
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [
-    "07-14-ui-hygiene"
-  ],
+  "children": [],
   "parent": null,
   "relatedFiles": [],
   "notes": "",
