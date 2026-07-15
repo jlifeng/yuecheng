@@ -51,29 +51,6 @@
       </view>
     </view>
 
-    <!-- Quick Actions -->
-    <view class="section">
-      <text class="section-title">快捷操作</text>
-      <view class="action-grid">
-        <view class="action-item" @click="goToAllMerchants">
-          <uni-icons type="hand-up" size="32" color="#000"></uni-icons>
-          <text class="action-text">商家管理</text>
-        </view>
-        <view class="action-item" @click="goToAllUsers">
-          <uni-icons type="person" size="32" color="#000"></uni-icons>
-          <text class="action-text">用户管理</text>
-        </view>
-        <view class="action-item" @click="goToAllOrders">
-          <uni-icons type="list" size="32" color="#000"></uni-icons>
-          <text class="action-text">订单管理</text>
-        </view>
-        <view class="action-item" @click="goToStatistics">
-          <uni-icons type="info" size="32" color="#000"></uni-icons>
-          <text class="action-text">数据统计</text>
-        </view>
-      </view>
-    </view>
-
     <!-- Account Actions -->
     <view class="section">
       <text class="section-title">账号操作</text>
@@ -230,42 +207,6 @@ const formatTime = (time: string) => {
 
 const goToReview = (merchant: any) => {
   uni.navigateTo({ url: `/pages/admin/review?id=${merchant.id}` })
-}
-
-const goToAllMerchants = () => {
-  uni.showModal({
-    title: '提示',
-    content: '完整的商家管理功能请在电脑浏览器访问管理后台',
-    showCancel: false,
-    confirmText: '知道了'
-  })
-}
-
-const goToAllUsers = () => {
-  uni.showModal({
-    title: '提示',
-    content: '完整的用户管理功能请在电脑浏览器访问管理后台',
-    showCancel: false,
-    confirmText: '知道了'
-  })
-}
-
-const goToAllOrders = () => {
-  uni.showModal({
-    title: '提示',
-    content: '完整的订单管理功能请在电脑浏览器访问管理后台',
-    showCancel: false,
-    confirmText: '知道了'
-  })
-}
-
-const goToStatistics = () => {
-  uni.showModal({
-    title: '提示',
-    content: '完整的数据统计功能请在电脑浏览器访问管理后台',
-    showCancel: false,
-    confirmText: '知道了'
-  })
 }
 
 const switchToPassenger = () => {
@@ -439,30 +380,6 @@ const handleLogout = () => {
 .empty-tip text {
   font-size: 26rpx;
   color: #999;
-}
-
-/* Action Grid */
-.action-grid {
-  display: flex;
-  gap: 16rpx;
-  margin-top: 20rpx;
-}
-
-.action-item {
-  flex: 1;
-  background: #f5f5f5;
-  border-radius: 12rpx;
-  padding: 24rpx;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12rpx;
-}
-
-.action-text {
-  font-size: 26rpx;
-  color: #000;
 }
 
 /* Account Actions */

@@ -2,7 +2,7 @@
   <view class="container">
     <!-- 状态卡片 -->
     <view class="status-card" :class="statusClass">
-      <text class="status-text">{{ orderDetail?.statusDesc || '加载中...' }}</text>
+      <text class="status-text">{{ orderDetail?.statusDesc || timelineStatusText || '加载中...' }}</text>
       <text class="sub-text">{{ statusSubText }}</text>
     </view>
 
@@ -38,7 +38,9 @@
         <view class="driver-detail">
           <text class="driver-name">{{ orderDetail.driverName || '司机' }}</text>
           <text class="driver-provider">{{ orderDetail.providerName }}</text>
-          <text class="driver-car" v-if="orderDetail.carModel">{{ orderDetail.carModel }}</text>
+          <text class="driver-car" v-if="orderDetail.carModel || orderDetail.plateNumber">
+            {{ [orderDetail.carModel, orderDetail.plateNumber].filter(Boolean).join(' · ') }}
+          </text>
         </view>
       </view>
       <view class="driver-actions">
@@ -62,18 +64,23 @@
           <view class="timeline-content">
             <text class="timeline-title">{{ item.title }}</text>
             <text class="timeline-desc" v-if="item.desc">{{ item.desc }}</text>
+            <text class="timeline-time" v-if="item.time">{{ formatTime(item.time) }}</text>
           </view>
         </view>
       </view>
     </view>
 
-    <!-- 费用明细 -->
+    <!-- 费用明细（提交后 / 完成后可回看） -->
     <view class="fee-card" v-if="orderDetail?.feeSummary">
       <text class="card-title">费用明细</text>
       <view class="fee-list">
         <view class="fee-row">
-          <text>行程费用</text>
+          <text>基础车费</text>
           <text>¥{{ orderDetail.feeSummary.baseFare }}</text>
+        </view>
+        <view class="fee-row" v-if="orderDetail.feeSummary.waitingFee">
+          <text>等待费</text>
+          <text>¥{{ orderDetail.feeSummary.waitingFee }}</text>
         </view>
         <view class="fee-row" v-if="orderDetail.feeSummary.tollFee">
           <text>过路费</text>
@@ -83,11 +90,24 @@
           <text>停车费</text>
           <text>¥{{ orderDetail.feeSummary.parkingFee }}</text>
         </view>
+        <view class="fee-row" v-if="orderDetail.feeSummary.otherFee">
+          <text>其他</text>
+          <text>¥{{ orderDetail.feeSummary.otherFee }}</text>
+        </view>
         <view class="fee-row total">
           <text>合计</text>
-          <text class="total-price">¥{{ orderDetail.feeSummary.total }}</text>
+          <text class="total-price">¥{{ feeTotalDisplay }}</text>
         </view>
       </view>
+      <text class="fee-note" v-if="orderDetail.orderFee?.notes">
+        备注：{{ orderDetail.orderFee.notes }}
+      </text>
+      <text class="fee-hint" v-if="canConfirmFees">
+        线下结算，确认仅作留档，不涉及支付
+      </text>
+      <text class="fee-hint done" v-else-if="isFeeConfirmed">
+        已确认留档
+      </text>
     </view>
 
     <!-- 报价说明 -->
@@ -100,6 +120,13 @@
     <view class="remark-card" v-if="orderDetail?.requirements">
       <text class="card-title">乘客备注</text>
       <text class="remark-text">{{ orderDetail.requirements }}</text>
+    </view>
+
+    <!-- 确认费用 -->
+    <view class="action-card" v-if="orderDetail && canConfirmFees">
+      <button class="confirm-fee-btn" :disabled="confirmingFees" @click="onConfirmFees">
+        {{ confirmingFees ? '确认中...' : '确认费用' }}
+      </button>
     </view>
 
     <!-- 操作按钮 -->
@@ -207,11 +234,16 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { fetchOrderDetail, cancelOrder, submitReview, checkReviewExists, type PassengerOrderDetail } from '@/services/passenger'
+import { fetchOrderDetail, cancelOrder, confirmOrderFees, submitReview, checkReviewExists, type PassengerOrderDetail } from '@/services/passenger'
+import { useOrderTimeline } from '@/composables/useOrderTimeline'
+import { canCancelFulfillment, getDemandStatusForFulfillment } from '@/utils/fulfillmentStateMachine'
+import type { FulfillmentStatus } from '@/types/order'
 
 const demandId = ref('')
 const orderDetail = ref<PassengerOrderDetail | null>(null)
 const merchantId = ref('')
+
+const { statusText: timelineStatusText, subText: timelineSubText } = useOrderTimeline(orderDetail)
 
 // 取消订单相关
 const cancelModalVisible = ref(false)
@@ -225,35 +257,85 @@ const cancelReasons = [
   '其他原因'
 ]
 
+const fineStatus = computed<FulfillmentStatus | null>(() => {
+  const detail = orderDetail.value
+  if (!detail) return null
+  return (detail.fulfillmentStatus || detail.status) as FulfillmentStatus
+})
+
+const coarseStatus = computed(() => {
+  const detail = orderDetail.value
+  if (!detail) return ''
+  const mapped = getDemandStatusForFulfillment(fineStatus.value)
+  if (mapped) return mapped
+  // detail.status may already be coarse on older payloads
+  return detail.status
+})
+
 const statusClass = computed(() => {
-  const status = orderDetail.value?.status
-  if (status === 'IN_PROGRESS') return 'status-active'
-  if (status === 'COMPLETED') return 'status-done'
-  if (status === 'CANCELLED') return 'status-cancelled'
+  const coarse = coarseStatus.value
+  const fine = fineStatus.value
+  if (coarse === 'IN_PROGRESS' || (fine && [
+    'ON_THE_WAY',
+    'ARRIVED_PICKUP',
+    'WAITING_PASSENGER',
+    'PASSENGER_BOARDED',
+    'ARRIVING_DESTINATION',
+    'ARRIVED_DESTINATION',
+    'PENDING_FEE_CONFIRM'
+  ].includes(fine))) {
+    return 'status-active'
+  }
+  if (coarse === 'COMPLETED' || fine === 'COMPLETED') return 'status-done'
+  if (coarse === 'CANCELLED' || fine === 'CANCELLED') return 'status-cancelled'
   return 'status-accepted'
 })
 
 const statusSubText = computed(() => {
-  const status = orderDetail.value?.status
-  if (status === 'ACCEPTED') return '司机将按时到达出发地点'
-  if (status === 'IN_PROGRESS') return '行程进行中，请注意安全'
-  if (status === 'COMPLETED') return '感谢您的使用，期待下次服务'
-  if (status === 'CANCELLED') return '订单已取消'
+  if (timelineSubText.value) return timelineSubText.value
+  const detail = orderDetail.value
+  if (!detail) return ''
+  const fine = fineStatus.value
+  if (fine === 'PENDING_ASSIGN' || (!detail.assignedDriverId && coarseStatus.value === 'ACCEPTED')) {
+    return '商家确认中，正在指派执行司机'
+  }
+  if (fine === 'ASSIGNED' || detail.assignedDriverId) {
+    return '司机已指派，将按时到达出发地点'
+  }
+  if (coarseStatus.value === 'IN_PROGRESS') return '行程进行中，请注意安全'
+  if (coarseStatus.value === 'COMPLETED') return '感谢您的使用，期待下次服务'
+  if (coarseStatus.value === 'CANCELLED') return '订单已取消'
   return ''
 })
 
-// 是否可以取消订单
-const canCancel = computed(() => {
-  const status = orderDetail.value?.status
-  // ACCEPTED 状态可以取消，IN_PROGRESS 需协商
-  return status === 'ACCEPTED'
+// 是否可以取消订单（费用确认前）
+const canCancel = computed(() => canCancelFulfillment(fineStatus.value))
+
+// 是否可以确认费用
+const canConfirmFees = computed(() => {
+  return fineStatus.value === 'PENDING_FEE_CONFIRM' && Boolean(orderDetail.value?.feeSummary)
+})
+
+// 费用已确认（完成后回看）
+const isFeeConfirmed = computed(() => {
+  const detail = orderDetail.value
+  if (!detail?.feeSummary) return false
+  if (detail.orderFee?.confirmedAt) return true
+  return fineStatus.value === 'COMPLETED' || coarseStatus.value === 'COMPLETED'
+})
+
+const feeTotalDisplay = computed(() => {
+  const fee = orderDetail.value?.feeSummary
+  if (!fee) return 0
+  return fee.totalAmount ?? fee.total ?? 0
 })
 
 // 是否可以评价
 const canReview = computed(() => {
-  const status = orderDetail.value?.status
-  return status === 'COMPLETED'
+  return coarseStatus.value === 'COMPLETED' || fineStatus.value === 'COMPLETED'
 })
+
+const confirmingFees = ref(false)
 
 // 评价相关
 const reviewModalVisible = ref(false)
@@ -304,7 +386,10 @@ const loadOrderDetail = async (id: string) => {
       }
 
       // 检查是否已评价
-      if (orderDetail.value.status === 'COMPLETED') {
+      if (
+        orderDetail.value.status === 'COMPLETED' ||
+        orderDetail.value.fulfillmentStatus === 'COMPLETED'
+      ) {
         hasReviewed.value = await checkReviewExists(id)
       }
     }
@@ -325,8 +410,39 @@ const callDriver = () => {
   }
 }
 
+
+const onConfirmFees = async () => {
+  if (!demandId.value || !canConfirmFees.value || confirmingFees.value) return
+
+  const total = feeTotalDisplay.value
+  const confirmRes = await uni.showModal({
+    title: '确认费用',
+    content: `确认费用合计 ¥${total}？确认仅作线下结算留档，不涉及支付。`,
+    confirmColor: '#000'
+  })
+  if (!confirmRes.confirm) return
+
+  confirmingFees.value = true
+  try {
+    uni.showLoading({ title: '确认中...' })
+    await confirmOrderFees(demandId.value)
+    uni.showToast({ title: '已确认完成', icon: 'success' })
+    await loadOrderDetail(demandId.value)
+  } catch (error: any) {
+    console.error('确认费用失败', error)
+    uni.showToast({ title: error?.message || '确认失败', icon: 'none' })
+  } finally {
+    confirmingFees.value = false
+    uni.hideLoading()
+  }
+}
+
 // 显示取消弹窗
 const showCancelModal = () => {
+  if (!canCancel.value) {
+    uni.showToast({ title: '当前状态不可取消', icon: 'none' })
+    return
+  }
   selectedReason.value = ''
   cancelModalVisible.value = true
 }
@@ -345,9 +461,9 @@ const confirmCancel = async () => {
     setTimeout(() => {
       loadOrderDetail(demandId.value)
     }, 500)
-  } catch (error) {
+  } catch (error: any) {
     console.error('取消订单失败', error)
-    uni.showToast({ title: '取消失败', icon: 'none' })
+    uni.showToast({ title: error?.message || '取消失败', icon: 'none' })
   } finally {
     cancelling.value = false
   }
@@ -632,9 +748,20 @@ onLoad((options: any) => {
   display: block;
 }
 
+.timeline-item.pending .timeline-title {
+  color: #999;
+}
+
 .timeline-desc {
   font-size: 24rpx;
   color: #999;
+  display: block;
+  margin-top: 4rpx;
+}
+
+.timeline-time {
+  font-size: 22rpx;
+  color: #bbb;
   display: block;
   margin-top: 4rpx;
 }
@@ -904,6 +1031,42 @@ onLoad((options: any) => {
 }
 
 .review-btn::after {
+  border: none;
+}
+
+.fee-note {
+  display: block;
+  margin-top: 16rpx;
+  font-size: 24rpx;
+  color: #999;
+}
+
+.fee-hint {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  color: #3b82f6;
+}
+
+.fee-hint.done {
+  color: #666;
+}
+
+.confirm-fee-btn {
+  width: 100%;
+  height: 88rpx;
+  background: #000;
+  color: #fff;
+  font-size: 30rpx;
+  border-radius: 44rpx;
+  border: none;
+}
+
+.confirm-fee-btn[disabled] {
+  background: #ccc;
+}
+
+.confirm-fee-btn::after {
   border: none;
 }
 </style>

@@ -1,0 +1,32 @@
+{
+  "id": "miniprogram-feature-gap-audit",
+  "name": "miniprogram-feature-gap-audit",
+  "title": "brainstorm: 盘点小程序待完善功能",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": "frontend",
+  "package": null,
+  "priority": "P2",
+  "creator": "--help",
+  "assignee": "leyfung",
+  "createdAt": "2026-07-14",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "07-14-schema-fulfillment-b",
+    "07-14-assign-driver",
+    "07-14-fulfillment-advance",
+    "07-14-fee-confirm",
+    "07-14-ui-hygiene"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

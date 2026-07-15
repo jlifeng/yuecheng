@@ -12,24 +12,12 @@
         </view>
       </view>
 
-      <!-- 管理员快捷操作 -->
+      <!-- 管理员快捷操作（仅保留已实现入口） -->
       <view class="menu-section">
         <text class="section-title">快捷操作</text>
         <view class="menu-list">
           <view class="menu-item" @click="goToAdminHome">
             <text>商家审核</text>
-            <text class="arrow">›</text>
-          </view>
-          <view class="menu-item" @click="showTip">
-            <text>用户管理</text>
-            <text class="arrow">›</text>
-          </view>
-          <view class="menu-item" @click="showTip">
-            <text>订单管理</text>
-            <text class="arrow">›</text>
-          </view>
-          <view class="menu-item" @click="showTip">
-            <text>数据统计</text>
             <text class="arrow">›</text>
           </view>
         </view>
@@ -143,7 +131,7 @@
         </view>
       </view>
 
-      <!-- 我的菜单 -->
+      <!-- 我的菜单（仅保留有实现的入口） -->
       <view class="menu-section">
         <text class="section-title">我的服务</text>
         <view class="menu-list">
@@ -153,14 +141,6 @@
           </view>
           <view class="menu-item" @click="goToTrips" v-if="!isProviderMode">
             <text>我的行程</text>
-            <text class="arrow">›</text>
-          </view>
-          <view class="menu-item">
-            <text>常用地址</text>
-            <text class="arrow">›</text>
-          </view>
-          <view class="menu-item">
-            <text>优惠券</text>
             <text class="arrow">›</text>
           </view>
         </view>
@@ -203,14 +183,6 @@
           </view>
           <view class="menu-item" @click="goToAgreement('privacy')">
             <text>隐私政策</text>
-            <text class="arrow">›</text>
-          </view>
-          <view class="menu-item">
-            <text>联系客服</text>
-            <text class="arrow">›</text>
-          </view>
-          <view class="menu-item">
-            <text>设置</text>
             <text class="arrow">›</text>
           </view>
           <view class="menu-item logout" @click="handleLogout">
@@ -557,10 +529,6 @@ const goToProviderOrders = () => {
 // 管理员专用方法
 const goToAdminHome = () => {
   uni.navigateTo({ url: '/pages/admin/index' })
-}
-
-const showTip = () => {
-  uni.showToast({ title: '功能待开发', icon: 'none' })
 }
 
 const switchToPassenger = () => {

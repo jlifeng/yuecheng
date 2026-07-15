@@ -46,7 +46,8 @@
       "Bash(python ./.trellis/scripts/task.py create \"我的订单页面\" --slug my-orders-page --assignee claude --parent \"04-28-incomplete-features-audit\")",
       "Bash(python ./.trellis/scripts/task.py list)",
       "Bash(python ./.trellis/scripts/task.py start \"04-28-order-creation-logic\")",
-      "Bash(python3 ./.trellis/scripts/task.py create \"我的订单页面\" --slug my-orders-page)"
+      "Bash(python3 ./.trellis/scripts/task.py create \"我的订单页面\" --slug my-orders-page)",
+      "Bash(python3 *)"
     ]
   }
 }

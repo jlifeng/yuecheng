@@ -36,14 +36,6 @@
           <text>我的订单</text>
           <text class="arrow" decode="true">&gt;</text>
         </view>
-        <view class="menu-item">
-          <text>我的报价</text>
-          <text class="arrow" decode="true">&gt;</text>
-        </view>
-        <view class="menu-item">
-          <text>收入统计</text>
-          <text class="arrow" decode="true">&gt;</text>
-        </view>
       </view>
     </view>
 
@@ -59,10 +51,6 @@
     <view class="menu-section">
       <view class="section-title">其他</view>
       <view class="menu-list">
-        <view class="menu-item">
-          <text>设置</text>
-          <text class="arrow" decode="true">&gt;</text>
-        </view>
         <view class="menu-item logout" @click="handleLogout">
           <text class="logout-text">退出登录</text>
         </view>
@@ -109,10 +97,6 @@ const goToDriverManage = () => {
 
 const goToOrders = () => {
   uni.navigateTo({ url: '/pages/provider/orders' });
-};
-
-const navigate = (url: string) => {
-  uni.navigateTo({ url });
 };
 
 // 退出登录
