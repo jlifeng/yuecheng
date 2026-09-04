@@ -12,12 +12,8 @@ export type FulfillmentStatusCopy = {
 
 export const FULFILLMENT_STATUS_COPY: Record<PassengerOrderStatus, FulfillmentStatusCopy> = {
   PENDING_ASSIGN: {
-    title: '等待司机接单',
-    subText: '商家确认中，正在指派执行司机'
-  },
-  ASSIGNED: {
-    title: '司机已接单',
-    subText: '司机已指派，将按时前往上车点'
+    title: '待出发',
+    subText: '司机已确认接单，即将出发前往上车点'
   },
   ON_THE_WAY: {
     title: '司机去接驾',

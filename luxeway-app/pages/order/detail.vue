@@ -296,11 +296,11 @@ const statusSubText = computed(() => {
   const detail = orderDetail.value
   if (!detail) return ''
   const fine = fineStatus.value
-  if (fine === 'PENDING_ASSIGN' || (!detail.assignedDriverId && coarseStatus.value === 'ACCEPTED')) {
-    return '商家确认中，正在指派执行司机'
+  if (fine === 'PENDING_ASSIGN') {
+    return '司机已接单，即将出发前往上车点'
   }
-  if (fine === 'ASSIGNED' || detail.assignedDriverId) {
-    return '司机已指派，将按时到达出发地点'
+  if (detail.assignedDriverId || coarseStatus.value === 'ACCEPTED') {
+    return '司机即将出发'
   }
   if (coarseStatus.value === 'IN_PROGRESS') return '行程进行中，请注意安全'
   if (coarseStatus.value === 'COMPLETED') return '感谢您的使用，期待下次服务'

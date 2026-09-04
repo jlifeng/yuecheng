@@ -76,12 +76,6 @@
       </view>
     </view>
 
-    <!-- 待指派提示 -->
-    <view class="driver-card pending" v-if="orderDetail && needsAssign">
-      <text class="card-title">执行司机</text>
-      <text class="pending-tip">请先指派本车队司机后再履约</text>
-    </view>
-
     <!-- 已提交费用（待乘客确认 / 已完成） -->
     <view class="fee-card" v-if="orderDetail && submittedFee">
       <text class="card-title">费用明细</text>
@@ -122,20 +116,8 @@
 
     <!-- 操作按钮 -->
     <view class="action-area">
-      <!-- 待指派：取消 + 指派司机 -->
-      <template v-if="needsAssign">
-        <view class="action-row">
-          <button class="action-btn cancel" @click="showCancelModal">
-            取消订单
-          </button>
-          <button class="action-btn primary flex-1" @click="openAssignModal">
-            指派司机
-          </button>
-        </view>
-      </template>
-
       <!-- 到达目的地：提交费用 -->
-      <template v-else-if="canSubmitFees">
+      <template v-if="canSubmitFees">
         <view class="action-row">
           <button
             v-if="canCancelOrder"
@@ -190,79 +172,12 @@
       <view v-else-if="orderDetail?.status === 'CANCELLED' || fulfillment === 'CANCELLED'" class="cancelled-tip">
         <text>订单已取消</text>
       </view>
-    </view>
 
-    <!-- 指派司机弹层 -->
-    <view class="modal-mask" v-if="assignModalVisible" @click="closeAssignModal"></view>
-    <view class="modal-popup assign-popup" v-if="assignModalVisible">
-      <view class="modal-header">
-        <text class="modal-title">指派司机</text>
-        <text class="modal-close" @click="closeAssignModal">×</text>
-      </view>
-      <view class="modal-body">
-        <text class="modal-desc">选择本车队司机（车辆可选）</text>
-
-        <text class="section-label">司机</text>
-        <view v-if="loadingFleet" class="empty-fleet">加载中...</view>
-        <view v-else-if="drivers.length === 0" class="empty-fleet">
-          暂无可用司机，请先在车队管理中添加
-        </view>
-        <view class="select-list" v-else>
-          <view
-            class="select-item"
-            v-for="driver in drivers"
-            :key="driver.id"
-            :class="{ active: selectedDriverId === driver.id }"
-            @click="selectedDriverId = driver.id"
-          >
-            <view class="select-main">
-              <text class="select-title">{{ driver.name }}</text>
-              <text class="select-sub">{{ driver.phone || '无手机号' }} · {{ driver.status === 'active' ? '可用' : '待确认' }}</text>
-            </view>
-            <view class="select-check" v-if="selectedDriverId === driver.id">✓</view>
-          </view>
-        </view>
-
-        <text class="section-label">车辆（可选）</text>
-        <view v-if="vehicles.length === 0" class="empty-fleet subtle">暂无可用车辆</view>
-        <view class="select-list" v-else>
-          <view
-            class="select-item"
-            :class="{ active: !selectedVehicleId }"
-            @click="selectedVehicleId = ''"
-          >
-            <view class="select-main">
-              <text class="select-title">不关联车辆</text>
-            </view>
-            <view class="select-check" v-if="!selectedVehicleId">✓</view>
-          </view>
-          <view
-            class="select-item"
-            v-for="vehicle in vehicles"
-            :key="vehicle.id"
-            :class="{ active: selectedVehicleId === vehicle.id }"
-            @click="selectedVehicleId = vehicle.id"
-          >
-            <view class="select-main">
-              <text class="select-title">{{ vehicle.model || '车辆' }}</text>
-              <text class="select-sub">{{ vehicle.plateNumber }}</text>
-            </view>
-            <view class="select-check" v-if="selectedVehicleId === vehicle.id">✓</view>
-          </view>
-        </view>
-      </view>
-      <view class="modal-footer">
-        <button class="modal-btn cancel" @click="closeAssignModal">返回</button>
-        <button
-          class="modal-btn confirm-black"
-          @click="confirmAssign"
-          :disabled="!selectedDriverId || assigning"
-        >
-          {{ assigning ? '指派中...' : '确认指派' }}
-        </button>
+      <!-- 当前用户不是执行司机：仅查看进度 -->
+      <view v-else-if="orderDetail && !isAssignedDriver && !isTerminal" class="read-only-tip">
+        <text>您不是该订单的执行司机，仅可查看进度</text>
       </view>
     </view>
-
 
     <!-- 费用录入弹层 -->
     <view class="modal-mask" v-if="feeModalVisible" @click="closeFeeModal"></view>
@@ -380,15 +295,10 @@ import { ref, computed } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import {
   merchantCancelOrder,
-  fetchMerchantDrivers,
-  fetchMerchantVehicles,
-  assignDriverToDemand,
   advanceFulfillment,
   submitOrderFees,
-  type MerchantDriver,
-  type MerchantVehicle
 } from '@/services/provider'
-import type { FulfillmentStatus, OrderFee } from '@/types/order'
+import type { OrderFee } from '@/types/order'
 import {
   canCancelFulfillment,
   defaultFulfillmentForDemandStatus,
@@ -404,18 +314,11 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const demandId = ref('')
 const bidId = ref('')
 const orderDetail = ref<any>(null)
-const assignedDriver = ref<{ id: string; name: string; phone: string } | null>(null)
+const assignedDriver = ref<{ id: string; name: string; phone: string; userId?: string | null } | null>(null)
 const assignedVehicle = ref<{ id: string; plateNumber: string; model: string } | null>(null)
 
-// 指派相关
-const assignModalVisible = ref(false)
-const loadingFleet = ref(false)
-const assigning = ref(false)
+// 履约推进
 const advancing = ref(false)
-const drivers = ref<MerchantDriver[]>([])
-const vehicles = ref<MerchantVehicle[]>([])
-const selectedDriverId = ref('')
-const selectedVehicleId = ref('')
 
 // 费用录入
 const feeModalVisible = ref(false)
@@ -448,29 +351,6 @@ const resolveFulfillment = (detail: any): FulfillmentStatus | null => {
 
 const fulfillment = computed(() => resolveFulfillment(orderDetail.value))
 
-const needsAssign = computed(() => {
-  const detail = orderDetail.value
-  if (!detail || detail.status === 'CANCELLED' || detail.status === 'COMPLETED') return false
-  const f = resolveFulfillment(detail)
-  if (f === FULFILLMENT_STATUS.CANCELLED || f === FULFILLMENT_STATUS.COMPLETED) return false
-  // 有指派司机且已进入 ASSIGNED+ 不需要再指派
-  if (detail.assignedDriverId && f && f !== FULFILLMENT_STATUS.PENDING_ASSIGN) return false
-  if (detail.assignedDriverId && !f) return false
-  return (
-    !detail.assignedDriverId ||
-    !f ||
-    f === FULFILLMENT_STATUS.PENDING_ASSIGN
-  )
-})
-
-const isAssigned = computed(() => {
-  const detail = orderDetail.value
-  if (!detail) return false
-  if (detail.assignedDriverId) return true
-  const f = resolveFulfillment(detail)
-  return f === FULFILLMENT_STATUS.ASSIGNED
-})
-
 const isTerminal = computed(() => {
   const f = fulfillment.value
   return (
@@ -481,9 +361,20 @@ const isTerminal = computed(() => {
   )
 })
 
-/** Primary next action from state machine; hide assign / fee dedicated flows. */
+/**
+ * 当前登录用户是否为执行司机（即报价人）。
+ * acceptBid 时 accepted_provider_id = bid.provider_id = 报价人的 userProfile.id。
+ * 只有执行司机本人才可推进履约节点（去接驾、到达上车点等）。
+ */
+const isAssignedDriver = computed(() => {
+  const userId = uni.getStorageSync('userProfile')?.id
+  if (!userId) return false
+  return orderDetail.value?.acceptedProviderId === userId
+})
+
+/** Primary next action from state machine; hide fee dedicated flows. */
 const primaryAction = computed<FulfillmentAction | null>(() => {
-  if (needsAssign.value || isTerminal.value) return null
+  if (isTerminal.value) return null
   const f = fulfillment.value
   if (!f) return null
   // 费用录入 / 等待确认有独立 UI
@@ -495,9 +386,9 @@ const primaryAction = computed<FulfillmentAction | null>(() => {
   }
   const action = getPrimaryNextAction(f)
   if (!action) return null
-  // 指派由独立 UI 处理
-  if (action.code === 'ASSIGN_DRIVER') return null
   if (action.code === 'SUBMIT_FEES' || action.code === 'CONFIRM_FEES') return null
+  // 仅执行司机本人可推进履约节点
+  if (!isAssignedDriver.value) return null
   return action
 })
 
@@ -508,7 +399,7 @@ const primaryActionLabel = computed(() => {
 })
 
 const canSubmitFees = computed(() => {
-  if (!orderDetail.value || isTerminal.value || needsAssign.value) return false
+  if (!orderDetail.value || isTerminal.value) return false
   return fulfillment.value === FULFILLMENT_STATUS.ARRIVED_DESTINATION
 })
 
@@ -558,15 +449,11 @@ const statusText = computed(() => {
   const detail = orderDetail.value
   if (!detail) return '加载中...'
   const f = resolveFulfillment(detail)
-  if (needsAssign.value) return '待指派司机'
   if (f) {
     const copy = getFulfillmentStatusCopy(f)
     if (copy?.title) return copy.title
   }
-  if (detail.status === 'ACCEPTED') {
-    if (isAssigned.value) return '已指派'
-    return '待出发'
-  }
+  if (detail.status === 'ACCEPTED') return '待出发'
   if (detail.status === 'IN_PROGRESS') return '进行中'
   if (detail.status === 'COMPLETED') return '已完成'
   if (detail.status === 'CANCELLED') return '已取消'
@@ -576,13 +463,11 @@ const statusText = computed(() => {
 const statusSubText = computed(() => {
   const detail = orderDetail.value
   if (!detail) return ''
-  if (needsAssign.value) return '请先从本车队指派执行司机'
   const f = resolveFulfillment(detail)
   if (f) {
     const copy = getFulfillmentStatusCopy(f)
     if (copy?.subText) return copy.subText
   }
-  if (detail.status === 'ACCEPTED' && isAssigned.value) return '司机已指派，可按节点推进履约'
   if (detail.status === 'ACCEPTED') return '请按时到达出发地点接乘客'
   if (detail.status === 'IN_PROGRESS') return '行程进行中，请安全驾驶'
   if (detail.status === 'COMPLETED') return '感谢您的服务'
@@ -610,7 +495,7 @@ const loadAssignedEntities = async (
   if (driverId) {
     try {
       const driverRes = await uni.request({
-        url: `${SUPABASE_URL}/rest/v1/drivers?id=eq.${driverId}&select=id,name,phone`,
+        url: `${SUPABASE_URL}/rest/v1/drivers?id=eq.${driverId}&select=id,name,phone,user_id`,
         method: 'GET',
         header: {
           'apikey': SUPABASE_ANON_KEY,
@@ -622,7 +507,8 @@ const loadAssignedEntities = async (
         assignedDriver.value = {
           id: d.id,
           name: d.name || '司机',
-          phone: d.phone || ''
+          phone: d.phone || '',
+          userId: d.user_id || null
         }
       }
     } catch (e) {
@@ -689,6 +575,7 @@ const loadOrderDetail = async (id: string) => {
         id: demand.id,
         status: demand.status,
         fulfillmentStatus: demand.fulfillment_status || null,
+        acceptedProviderId: demand.accepted_provider_id || null,
         assignedDriverId: demand.assigned_driver_id || null,
         assignedVehicleId: demand.assigned_vehicle_id || null,
         startAddress: demand.start_address,
@@ -749,50 +636,6 @@ const loadOrderDetail = async (id: string) => {
   }
 }
 
-const openAssignModal = async () => {
-  selectedDriverId.value = ''
-  selectedVehicleId.value = ''
-  assignModalVisible.value = true
-  loadingFleet.value = true
-  try {
-    const [dList, vList] = await Promise.all([
-      fetchMerchantDrivers(),
-      fetchMerchantVehicles()
-    ])
-    drivers.value = dList
-    vehicles.value = vList
-  } catch (e: any) {
-    console.error('加载车队失败', e)
-    uni.showToast({ title: e?.message || '加载车队失败', icon: 'none' })
-  } finally {
-    loadingFleet.value = false
-  }
-}
-
-const closeAssignModal = () => {
-  assignModalVisible.value = false
-}
-
-const confirmAssign = async () => {
-  if (!selectedDriverId.value || !demandId.value) return
-
-  assigning.value = true
-  try {
-    await assignDriverToDemand(demandId.value, {
-      driverId: selectedDriverId.value,
-      vehicleId: selectedVehicleId.value || null
-    })
-    uni.showToast({ title: '指派成功', icon: 'success' })
-    assignModalVisible.value = false
-    await loadOrderDetail(demandId.value)
-  } catch (error: any) {
-    console.error('指派失败', error)
-    uni.showToast({ title: error?.message || '指派失败', icon: 'none' })
-  } finally {
-    assigning.value = false
-  }
-}
-
 const onPrimaryAction = async () => {
   if (!primaryAction.value || !demandId.value || advancing.value) return
 
@@ -805,14 +648,6 @@ const onPrimaryAction = async () => {
   ) {
     uni.showToast({ title: '请先完成费用确认', icon: 'none' })
     return
-  }
-
-  if (needsAssign.value || !orderDetail.value?.assignedDriverId) {
-    // ON_THE_WAY 及之后必须已指派
-    if (primaryAction.value.to !== FULFILLMENT_STATUS.ASSIGNED) {
-      uni.showToast({ title: '请先指派司机', icon: 'none' })
-      return
-    }
   }
 
   const confirmRes = await uni.showModal({
@@ -1259,6 +1094,13 @@ onLoad((options: any) => {
   text-align: center;
   padding: 30rpx;
   font-size: 32rpx;
+  color: #999;
+}
+
+.read-only-tip {
+  text-align: center;
+  padding: 24rpx;
+  font-size: 28rpx;
   color: #999;
 }
 

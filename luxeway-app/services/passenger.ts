@@ -367,16 +367,42 @@ export const acceptBid = async (bidId: string): Promise<{ orderId: string; deman
     throw new Error('更新报价状态失败')
   }
 
-  // 3. 更新需求状态为 ACCEPTED，并写入履约待指派
+  // 3. 查找报价人对应的 driver 记录（报价人 = 执行司机，无需指派）
+  //    drivers.user_id = bidInfo.provider_id，该司机属于 bidInfo.merchant_id 车队
+  let assignedDriverId: string | null = null
+  try {
+    const driverRes = await uni.request({
+      url: `${SUPABASE_URL}/rest/v1/drivers?user_id=eq.${bidInfo.provider_id}&merchant_id=eq.${bidInfo.merchant_id}&status=eq.active&select=id`,
+      method: 'GET',
+      header: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${accessToken}`
+      }
+    })
+    if (driverRes.statusCode === 200 && (driverRes.data as any[])?.length) {
+      assignedDriverId = (driverRes.data as any[])[0].id
+    }
+  } catch (e) {
+    console.error('acceptBid - 查询司机记录失败:', e)
+    // 非致命：即使查不到 driver 记录，订单仍可继续（司机后续仍可操作）
+  }
+
+  // 4. 更新需求状态为 ACCEPTED，写入履约待出发 + 执行司机
+  //    PENDING_ASSIGN 含义从"待指派"变为"待出发"——报价人即为执行司机。
   //    accepted_provider_id 记录中标商家，用于 RLS 归属判定（避免 demands<->bids 递归）。
+  const updateData: Record<string, any> = {
+    status: 'ACCEPTED',
+    fulfillment_status: 'PENDING_ASSIGN',
+    accepted_provider_id: bidInfo.provider_id
+  }
+  if (assignedDriverId) {
+    updateData.assigned_driver_id = assignedDriverId
+  }
+
   const updateDemandRes = await uni.request({
     url: `${SUPABASE_URL}/rest/v1/demands?id=eq.${demandId}`,
     method: 'PATCH',
-    data: {
-      status: 'ACCEPTED',
-      fulfillment_status: 'PENDING_ASSIGN',
-      accepted_provider_id: bidInfo.provider_id
-    },
+    data: updateData,
     header: {
       'apikey': SUPABASE_ANON_KEY,
       'Authorization': `Bearer ${accessToken}`,
@@ -396,6 +422,54 @@ export const acceptBid = async (bidId: string): Promise<{ orderId: string; deman
   console.log('acceptBid - 订单创建成功, demandId:', demandId)
 
   return { orderId: demandId, demandId }
+}
+
+/**
+ * 拒绝报价：乘客拒绝某个 PENDING 报价。
+ * 拒绝后该报价 status=REJECTED，其他司机可对该 demand 重新报价（独占报价机制）。
+ */
+export const rejectBid = async (bidId: string): Promise<void> => {
+  const accessToken = uni.getStorageSync('accessToken')
+
+  if (!accessToken) {
+    throw new Error('请先登录')
+  }
+
+  // 1. 查询报价信息，确认是 PENDING 状态
+  const bidRes = await uni.request({
+    url: `${SUPABASE_URL}/rest/v1/bids?id=eq.${bidId}&select=id,status`,
+    method: 'GET',
+    header: {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${accessToken}`
+    }
+  })
+
+  if (bidRes.statusCode !== 200 || !(bidRes.data as any[])?.length) {
+    throw new Error('报价不存在')
+  }
+
+  const bidInfo = (bidRes.data as any[])[0]
+  if (bidInfo.status !== 'PENDING') {
+    throw new Error('只能拒绝待处理的报价')
+  }
+
+  // 2. 更新报价状态为 REJECTED
+  const updateRes = await uni.request({
+    url: `${SUPABASE_URL}/rest/v1/bids?id=eq.${bidId}`,
+    method: 'PATCH',
+    data: { status: 'REJECTED' },
+    header: {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=minimal'
+    }
+  })
+
+  if (updateRes.statusCode !== 204) {
+    throw new Error('拒绝报价失败')
+  }
 }
 
 

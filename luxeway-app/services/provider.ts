@@ -188,6 +188,40 @@ export const fetchWorkbench = async (): Promise<WorkbenchData> => {
     }
   }
 
+  // 兜底：按 owner_user_id 直接查商家（避免 storage 快照无 merchant_id / 角色未同步导致漏查）
+  try {
+    console.log('fetchWorkbench - 兜底按 owner_user_id 查询商家')
+    const res = await uni.request({
+      url: `${SUPABASE_URL}/rest/v1/merchants?owner_user_id=eq.${userProfile.id}&select=*`,
+      method: 'GET',
+      header: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${accessToken}`
+      }
+    })
+
+    console.log('fetchWorkbench - 兜底商家查询结果:', res.statusCode, res.data)
+
+    if (res.statusCode === 200 && res.data && (res.data as any[]).length > 0) {
+      const merchant = (res.data as any[])[0]
+      // 同步 merchant_id 到本地存储，避免下次再走兜底
+      if (merchant.id && userProfile.merchant_id !== merchant.id) {
+        userProfile.merchant_id = merchant.id
+        uni.setStorageSync('userProfile', userProfile)
+      }
+      return {
+        session: {
+          reviewStatus: (merchant.review_status || 'pending') as MerchantReviewStatus,
+          role: (userProfile.role || 'OWNER') as ProviderRole,
+          companyName: merchant.company_name || '',
+          displayName: userProfile.nickname || userProfile.phone || ''
+        }
+      }
+    }
+  } catch (e) {
+    console.error('兜底查询商家失败', e)
+  }
+
   // 返回默认值
   console.log('fetchWorkbench - 返回默认值 pending')
   return {
@@ -222,25 +256,23 @@ export const fetchPendingDemands = async (
 
   console.log('fetchPendingDemands - 发送请求, page:', page, 'from:', from, 'to:', to)
 
-  // 先查询当前用户已报价的 demand_id 列表
+  // 查询已有 PENDING 报价的 demand_id 列表（独占报价：一个订单同时只允许一个 PENDING 报价）
   let excludedDemandIds: string[] = []
-  if (userProfile?.id) {
-    try {
-      const myBidsRes = await uni.request({
-        url: `${SUPABASE_URL}/rest/v1/bids?provider_id=eq.${userProfile.id}&select=demand_id`,
-        method: 'GET',
-        header: {
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${accessToken}`
-        }
-      })
-      if (myBidsRes.statusCode === 200 && myBidsRes.data) {
-        excludedDemandIds = (myBidsRes.data as any[]).map((b: any) => b.demand_id)
-        console.log('fetchPendingDemands - 已报价的 demand_id:', excludedDemandIds)
+  try {
+    const pendingBidsRes = await uni.request({
+      url: `${SUPABASE_URL}/rest/v1/bids?status=eq.PENDING&select=demand_id`,
+      method: 'GET',
+      header: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${accessToken}`
       }
-    } catch (e) {
-      console.error('查询已报价需求失败', e)
+    })
+    if (pendingBidsRes.statusCode === 200 && pendingBidsRes.data) {
+      excludedDemandIds = (pendingBidsRes.data as any[]).map((b: any) => b.demand_id)
+      console.log('fetchPendingDemands - 已有PENDING报价的 demand_id:', excludedDemandIds)
     }
+  } catch (e) {
+    console.error('查询已有PENDING报价需求失败', e)
   }
 
   // 查询待报价需求
@@ -263,11 +295,11 @@ export const fetchPendingDemands = async (
   }
 
   if (res.statusCode === 200 && res.data) {
-    // 过滤掉已报价的需求
+    // 过滤掉已有 PENDING 报价的需求（独占报价规则）
     const filteredData = (res.data as any[]).filter(
       (d: any) => !excludedDemandIds.includes(d.id)
     )
-    console.log('fetchPendingDemands - 过滤后数量:', filteredData.length, '原数量:', (res.data as any[]).length)
+    console.log('fetchPendingDemands - 过滤后数量:', filteredData.length, '原数量:', (res.data as any[]).length, '排除:', excludedDemandIds.length)
     return {
       data: filteredData,
       hasMore: (res.data as any[]).length === pageSize
@@ -335,7 +367,7 @@ export const fetchQuotedBids = async (
   return { data: [], hasMore: false }
 }
 
-// 获取进行中的订单（已接受的报价，支持分页）
+// 获取进行中的订单（双路径查询：accepted_provider_id + bids ACCEPTED）
 export const fetchOngoingOrders = async (
   page: number = 1,
   pageSize: number = 20
@@ -352,45 +384,124 @@ export const fetchOngoingOrders = async (
 
   const from = (page - 1) * pageSize
 
-  console.log('fetchOngoingOrders - 发送请求, page:', page)
-  // 查询我已接受的报价，需求状态为 ACCEPTED 或 IN_PROGRESS
-  const res = await uni.request({
-    url: `${SUPABASE_URL}/rest/v1/bids?provider_id=eq.${userProfile.id}&status=eq.ACCEPTED&select=*,demands(id,start_address,end_address,earliest_departure,latest_departure,passenger_count,requirements,status)&order=created_at.desc&offset=${from}&limit=${pageSize}`,
-    method: 'GET',
-    header: {
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${accessToken}`
+  // 路径1: 从 demands 表查 accepted_provider_id = 当前用户
+  let demandResults: any[] = []
+  try {
+    const demandRes = await uni.request({
+      url: `${SUPABASE_URL}/rest/v1/demands?accepted_provider_id=eq.${userProfile.id}&status=in.(ACCEPTED,IN_PROGRESS)&select=id,status,fulfillment_status,start_address,end_address,earliest_departure,latest_departure,passenger_count,requirements&order=created_at.desc&offset=${from}&limit=${pageSize}`,
+      method: 'GET',
+      header: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${accessToken}`
+      }
+    })
+    console.log('fetchOngoingOrders - demands路径响应:', demandRes.statusCode, demandRes.data)
+    if (demandRes.statusCode === 200 && demandRes.data) {
+      demandResults = demandRes.data as any[]
     }
-  })
-
-  console.log('fetchOngoingOrders - 响应:', res.statusCode, res.data)
-
-  // JWT 过期处理
-  if (isJwtExpired(res.statusCode, res.data)) {
-    handleJwtExpired()
-    return { data: [], hasMore: false }
+  } catch (e) {
+    console.error('fetchOngoingOrders - demands路径失败:', e)
   }
 
-  if (res.statusCode === 200 && res.data) {
-    const data = (res.data as any[]).map(bid => ({
-      id: bid.demand_id,
-      bidId: bid.id,
-      price: bid.price,
-      start: bid.demands?.start_address || '',
-      end: bid.demands?.end_address || '',
-      earliestDeparture: bid.demands?.earliest_departure || '',
-      latestDeparture: bid.demands?.latest_departure || '',
-      passengerCount: bid.demands?.passenger_count || 1,
-      remark: bid.demands?.requirements || '',
-      status: bid.demands?.status || '',
-      statusDesc: getStatusDesc(bid.demands?.status || '')
-    }))
-    return {
-      data,
-      hasMore: data.length === pageSize
+  // 路径2: 从 bids 表查 provider_id = 当前用户 & status = ACCEPTED
+  // 不用关联查询（demands RLS 会阻止关联数据），分两步：先拿 demand_id，再查 demands
+  let bidDemandIds: string[] = []
+  let bidPriceMap: Record<string, number> = {}
+  try {
+    const bidRes = await uni.request({
+      url: `${SUPABASE_URL}/rest/v1/bids?provider_id=eq.${userProfile.id}&status=eq.ACCEPTED&select=demand_id,price&order=created_at.desc&offset=${from}&limit=${pageSize}`,
+      method: 'GET',
+      header: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${accessToken}`
+      }
+    })
+    console.log('fetchOngoingOrders - bids路径响应:', bidRes.statusCode, bidRes.data)
+    if (bidRes.statusCode === 200 && bidRes.data) {
+      const bids = bidRes.data as any[]
+      bidDemandIds = bids.map((b: any) => b.demand_id)
+      bids.forEach((b: any) => { bidPriceMap[b.demand_id] = b.price || 0 })
+    }
+  } catch (e) {
+    console.error('fetchOngoingOrders - bids路径失败:', e)
+  }
+
+  // 用 demand_id 列表查 demands（乘客策略 passenger_id=auth.uid() 不会匹配，
+  // 但 accepted_provider_id 策略可能匹配；如果都不匹配则查不到，需要回填数据）
+  let bidDemandResults: any[] = []
+  if (bidDemandIds.length > 0) {
+    // 过滤掉路径1已查到的
+    const existingIds = new Set(demandResults.map(d => d.id))
+    const missingIds = bidDemandIds.filter(id => !existingIds.has(id))
+
+    if (missingIds.length > 0) {
+      try {
+        // 用 in.() 查询，Supabase 格式: id=in.(uuid1,uuid2)
+        const idList = missingIds.join(',')
+        const demandRes2 = await uni.request({
+          url: `${SUPABASE_URL}/rest/v1/demands?id=in.(${idList})&select=id,status,fulfillment_status,start_address,end_address,earliest_departure,latest_departure,passenger_count,requirements`,
+          method: 'GET',
+          header: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${accessToken}`
+          }
+        })
+        console.log('fetchOngoingOrders - bids补充demands响应:', demandRes2.statusCode, demandRes2.data)
+        if (demandRes2.statusCode === 200 && demandRes2.data) {
+          bidDemandResults = demandRes2.data as any[]
+        }
+      } catch (e) {
+        console.error('fetchOngoingOrders - bids补充demands失败:', e)
+      }
     }
   }
-  return { data: [], hasMore: false }
+
+  // 合并去重（以 demand id 为 key）
+  const seen = new Set<string>()
+  const merged: any[] = []
+
+  // 先放 demands 路径的结果
+  for (const d of demandResults) {
+    if (!seen.has(d.id)) {
+      seen.add(d.id)
+      merged.push({
+        id: d.id,
+        start: d.start_address || '',
+        end: d.end_address || '',
+        earliestDeparture: d.earliest_departure || '',
+        latestDeparture: d.latest_departure || '',
+        passengerCount: d.passenger_count || 1,
+        remark: d.requirements || '',
+        status: d.status || '',
+        statusDesc: getStatusDesc(d.status || ''),
+        price: bidPriceMap[d.id] || 0
+      })
+    }
+  }
+
+  // 再放 bids 路径补充的结果
+  for (const d of bidDemandResults) {
+    if (seen.has(d.id)) continue
+    seen.add(d.id)
+    merged.push({
+      id: d.id,
+      start: d.start_address || '',
+      end: d.end_address || '',
+      earliestDeparture: d.earliest_departure || '',
+      latestDeparture: d.latest_departure || '',
+      passengerCount: d.passenger_count || 1,
+      remark: d.requirements || '',
+      status: d.status || '',
+      statusDesc: getStatusDesc(d.status || ''),
+      price: bidPriceMap[d.id] || 0
+    })
+  }
+
+  console.log('fetchOngoingOrders - 合并结果:', merged.length, '条')
+  return {
+    data: merged,
+    hasMore: demandResults.length === pageSize || bidDemandIds.length === pageSize
+  }
 }
 
 // 状态描述映射
@@ -465,6 +576,27 @@ export const submitBid = async (payload: ProviderBidPayload): Promise<{ bidId: s
 
   if (!accessToken || !userProfile?.id || !userProfile?.merchant_id) {
     throw new Error('请先登录商家账号')
+  }
+
+  // 独占报价检查：该 demand 是否已有 PENDING 状态的报价
+  // 如有，不允许其他人再报价（除非该报价被拒绝）
+  try {
+    const checkRes = await uni.request({
+      url: `${SUPABASE_URL}/rest/v1/bids?demand_id=eq.${payload.demandId}&status=eq.PENDING&select=id`,
+      method: 'GET',
+      header: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${accessToken}`
+      }
+    })
+    if (checkRes.statusCode === 200 && (checkRes.data as any[])?.length > 0) {
+      throw new Error('该行程已有司机报价，请稍后再试')
+    }
+  } catch (e: any) {
+    // 如果是我们自己抛的"已有报价"错误，直接抛出
+    if (e.message === '该行程已有司机报价，请稍后再试') throw e
+    // 网络等异常不阻塞报价，继续执行
+    console.error('独占报价检查失败，继续报价:', e)
   }
 
   const bidData = {
@@ -979,12 +1111,8 @@ export const advanceFulfillment = async (
       FULFILLMENT_STATUS.PENDING_ASSIGN)
 
   // 3) Dedicated flows must not go through generic advance
-  // - ASSIGNED: assignDriverToDemand (writes driver/vehicle)
   // - CANCELLED: merchantCancelOrder / passenger cancelOrder
   // - COMPLETED: passenger fee confirm (fee-confirm task)
-  if (toStatus === FULFILLMENT_STATUS.ASSIGNED) {
-    throw new Error('请使用指派司机完成该步骤')
-  }
   if (toStatus === FULFILLMENT_STATUS.CANCELLED) {
     throw new Error('请使用取消订单完成该操作')
   }
@@ -1000,9 +1128,67 @@ export const advanceFulfillment = async (
     throw new Error(`非法状态跳转：${fromStatus} → ${toStatus}`)
   }
 
-  // 5) Must have assigned driver before ON_THE_WAY and beyond
+  // 5) Auto-assign driver if not yet linked.
+  //    The driver who clicks "去接驾" IS the executing driver.
+  //    acceptBid tries to write assigned_driver_id, but may fail if no drivers record exists.
+  //    Here we ensure the link: find or create the association at go-live time.
   if (!demand.assigned_driver_id) {
-    throw new Error('请先指派司机')
+    // Try to find the driver record for current user
+    const driverRes = await uni.request({
+      url: `${SUPABASE_URL}/rest/v1/drivers?user_id=eq.${userProfile.id}&status=eq.active&select=id&limit=1`,
+      method: 'GET',
+      header: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${accessToken}`
+      }
+    })
+    const driverRow = (driverRes.data as any[])?.[0]
+    if (driverRow) {
+      // Write assigned_driver_id + accepted_provider_id onto the demand
+      const assignRes = await uni.request({
+        url: `${SUPABASE_URL}/rest/v1/demands?id=eq.${demandId}`,
+        method: 'PATCH',
+        data: {
+          assigned_driver_id: driverRow.id,
+          accepted_provider_id: userProfile.id
+        },
+        header: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        }
+      })
+      if (assignRes.statusCode === 204 || assignRes.statusCode === 200) {
+        demand.assigned_driver_id = driverRow.id
+        console.log('advanceFulfillment - 自动关联司机:', driverRow.id)
+      } else {
+        console.error('advanceFulfillment - 自动关联司机失败:', assignRes.statusCode)
+        throw new Error('关联司机失败，请重试')
+      }
+    } else {
+      // No driver record at all — this shouldn't happen for a confirmed fleet member,
+      // but as a fallback, just write accepted_provider_id so RLS works
+      const assignRes = await uni.request({
+        url: `${SUPABASE_URL}/rest/v1/demands?id=eq.${demandId}`,
+        method: 'PATCH',
+        data: {
+          accepted_provider_id: userProfile.id
+        },
+        header: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        }
+      })
+      if (assignRes.statusCode === 204 || assignRes.statusCode === 200) {
+        console.log('advanceFulfillment - 无driver记录，仅写入accepted_provider_id')
+      } else {
+        console.error('advanceFulfillment - 写入accepted_provider_id失败:', assignRes.statusCode)
+        throw new Error('关联司机失败，请重试')
+      }
+    }
   }
 
   // 6) Map coarse status (ON_THE_WAY+ → IN_PROGRESS; fee pending stays IN_PROGRESS)

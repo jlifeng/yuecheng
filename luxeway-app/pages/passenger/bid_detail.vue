@@ -64,9 +64,28 @@
 
     <!-- 操作按钮 -->
     <view class="action-area">
-      <button class="accept-btn" @click="acceptBidHandler">
+      <button
+        class="reject-btn"
+        v-if="bidDetail?.status === 'PENDING'"
+        :disabled="isRejecting"
+        @click="rejectBidHandler"
+      >
+        {{ isRejecting ? '处理中...' : '拒绝报价' }}
+      </button>
+      <button
+        class="accept-btn"
+        v-if="bidDetail?.status === 'PENDING'"
+        :disabled="isAccepting"
+        @click="acceptBidHandler"
+      >
         <text class="accept-btn-text">选择此报价</text>
       </button>
+      <view v-else-if="bidDetail?.status === 'REJECTED'" class="status-tip rejected">
+        <text>已拒绝该报价</text>
+      </view>
+      <view v-else-if="bidDetail?.status === 'ACCEPTED'" class="status-tip accepted">
+        <text>已选择该报价</text>
+      </view>
     </view>
   </view>
 </template>
@@ -74,13 +93,14 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { fetchBidDetail, fetchMyDemands, acceptBid } from '@/services/passenger'
+import { fetchBidDetail, fetchMyDemands, acceptBid, rejectBid } from '@/services/passenger'
 
 const bidId = ref('')
 const demandId = ref('')
 const bidDetail = ref<any>(null)
 const demand = ref<any>(null)
 const isAccepting = ref(false)
+const isRejecting = ref(false)
 
 const typeMap: Record<string, string> = {
   'TRANSFER': '接送',
@@ -132,7 +152,6 @@ const acceptBidHandler = async () => {
           uni.hideLoading()
           uni.showToast({ title: '已选择报价', icon: 'success' })
           setTimeout(() => {
-            // 跳转到订单详情页
             uni.redirectTo({ url: `/pages/order/detail?demandId=${result.demandId}` })
           }, 1000)
         } catch (error: any) {
@@ -140,6 +159,34 @@ const acceptBidHandler = async () => {
           uni.showToast({ title: error.message || '操作失败', icon: 'none' })
         } finally {
           isAccepting.value = false
+        }
+      }
+    }
+  })
+}
+
+const rejectBidHandler = async () => {
+  if (isRejecting.value) return
+
+  uni.showModal({
+    title: '拒绝报价',
+    content: '确定拒绝此报价吗？拒绝后其他司机可重新报价。',
+    confirmColor: '#000',
+    success: async (res) => {
+      if (res.confirm) {
+        isRejecting.value = true
+        try {
+          uni.showLoading({ title: '处理中...' })
+          await rejectBid(bidId.value)
+          uni.hideLoading()
+          uni.showToast({ title: '已拒绝报价', icon: 'success' })
+          // 刷新报价详情，更新按钮状态
+          await loadBidDetail()
+        } catch (error: any) {
+          uni.hideLoading()
+          uni.showToast({ title: error.message || '操作失败', icon: 'none' })
+        } finally {
+          isRejecting.value = false
         }
       }
     }
@@ -352,10 +399,28 @@ onLoad(async (options: any) => {
   padding: 24rpx 32rpx;
   background: #fff;
   border-top: 2rpx solid #f0f0f0;
+  display: flex;
+  gap: 16rpx;
+}
+
+.reject-btn {
+  flex: none;
+  height: 96rpx;
+  background: #f5f5f5;
+  color: #666;
+  font-size: 30rpx;
+  font-weight: 500;
+  border-radius: 48rpx;
+  padding: 0 40rpx;
+  border: none;
+}
+
+.reject-btn::after {
+  border: none;
 }
 
 .accept-btn {
-  width: 100%;
+  flex: 1;
   height: 96rpx;
   background: #000;
   color: #fff;
@@ -366,5 +431,26 @@ onLoad(async (options: any) => {
 
 .accept-btn::after {
   border: none;
+}
+
+.status-tip {
+  width: 100%;
+  height: 96rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 48rpx;
+  font-size: 30rpx;
+  font-weight: 500;
+}
+
+.status-tip.rejected {
+  background: #f5f5f5;
+  color: #999;
+}
+
+.status-tip.accepted {
+  background: #000;
+  color: #fff;
 }
 </style>

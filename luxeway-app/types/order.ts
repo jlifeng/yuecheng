@@ -1,11 +1,11 @@
 /**
- * Order / demand status types (Approach B).
+ * Order / demand status types (Approach B, no driver assignment).
  *
  * Coarse lifecycle lives on `demands.status` (DemandStatus).
  * Fine-grained fulfillment lives on `demands.fulfillment_status` (FulfillmentStatus).
  *
  * Mapping (see utils/fulfillmentStateMachine.ts):
- * - PENDING_ASSIGN / ASSIGNED → ACCEPTED
+ * - PENDING_ASSIGN → ACCEPTED
  * - ON_THE_WAY … PENDING_FEE_CONFIRM → IN_PROGRESS
  * - COMPLETED → COMPLETED
  * - CANCELLED → CANCELLED
@@ -15,21 +15,23 @@
 export type DemandStatus =
   | 'PENDING' // 待发布
   | 'BIDDING' // 等待报价
-  | 'ACCEPTED' // 已确认（乘客选择了报价 / 待指派~已指派）
+  | 'ACCEPTED' // 已确认（乘客选择了报价，司机待出发）
   | 'IN_PROGRESS' // 进行中（去接驾～待费用确认）
   | 'COMPLETED' // 已完成
   | 'CANCELLED' // 已取消
 
 /**
  * Fine-grained fulfillment node on demands.fulfillment_status.
- * Main path: PENDING_ASSIGN → ASSIGNED → ON_THE_WAY → ARRIVED_PICKUP
+ * Main path: PENDING_ASSIGN → ON_THE_WAY → ARRIVED_PICKUP
  *   → (WAITING_PASSENGER?) → PASSENGER_BOARDED → ARRIVED_DESTINATION
  *   → PENDING_FEE_CONFIRM → COMPLETED
  * Optional / extended: ARRIVING_DESTINATION, ABNORMAL_PROCESSING
+ *
+ * PENDING_ASSIGN means "driver assigned, waiting to start pickup" (not "waiting for assignment").
+ * The bid creator IS the executing driver — no separate assignment step.
  */
 export type FulfillmentStatus =
   | 'PENDING_ASSIGN'
-  | 'ASSIGNED'
   | 'ON_THE_WAY'
   | 'ARRIVED_PICKUP'
   | 'WAITING_PASSENGER'

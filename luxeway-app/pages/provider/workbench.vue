@@ -195,7 +195,7 @@ const selectedCity = ref<any>({ id: 0, name: '' });
 const selectedDistrict = ref<any>({ id: 0, name: '' });
 const searchQuery = ref('');
 const providerRole = ref<ProviderRole>('OWNER');
-const reviewStatus = ref<MerchantReviewStatus>('APPROVED');
+const reviewStatus = ref<MerchantReviewStatus>('pending');
 const companyName = ref('');
 const displayName = ref('');
 
@@ -487,6 +487,8 @@ const loadOngoingOrders = async (isLoadMore: boolean = false) => {
       ongoingOrders.value = formatted
     }
     ongoingHasMore.value = hasMore
+    console.log('loadOngoingOrders - 赋值完成, ongoingOrders:', ongoingOrders.value.length, '条', JSON.stringify(ongoingOrders.value.map(o => ({id: o.id, start: o.start}))))
+    console.log('loadOngoingOrders - currentTab:', currentTab.value, 'displayOrders.length:', displayOrders.value.length)
   } catch (error) {
     console.error('加载进行中订单失败', error)
     if (!isLoadMore) ongoingOrders.value = []
@@ -565,12 +567,12 @@ const loadMoreData = async () => {
 };
 
 const isDriverMode = computed(() => providerRole.value === 'DRIVER');
-const canEnterBid = computed(() => !isDriverMode.value && canQuoteDemand(reviewStatus.value));
+const canEnterBid = computed(() => canQuoteDemand(reviewStatus.value));
 
-// 仅司机模式或无 merchant_id 时显示 banner 提示
+// 司机模式 banner 提示
 const statusBanner = computed(() => {
   if (isDriverMode.value) {
-    return '当前为司机模式，仅展示任务与订单进度';
+    return '司机模式：可查看需求并报价接单';
   }
   // 其他状态用卡片展示，不用 banner
   return '';
@@ -709,11 +711,8 @@ const switchToAll = () => {
 };
 
 const goToBid = (order: any) => {
-  if (isDriverMode.value) {
-    uni.showToast({ title: '司机模式请查看任务进度', icon: 'none' });
-    return;
-  }
-
+  // 司机确认加入车队后即可自行报价接单（不再限制仅车管/调度员报价）
+  // canQuoteDemand 检查商家审核状态
   if (!canQuoteDemand(reviewStatus.value)) {
     uni.showToast({ title: '商家审核通过后才能报价', icon: 'none' });
     return;

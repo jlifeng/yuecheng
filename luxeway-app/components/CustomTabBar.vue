@@ -44,10 +44,16 @@ watch(() => props.current, (newVal) => {
   currentIndex.value = newVal
 }, { immediate: true })
 
-// 根据用户角色决定跳转路径
+// 根据当前页面决定首页路径
+// 如果当前在商家工作台/商家相关页面，首页=工作台
+// 否则首页=乘客首页
 const getHomePath = () => {
-  const userRole = uni.getStorageSync('userRole')
-  if (userRole === 'provider') {
+  const pages = getCurrentPages()
+  const currentPage = pages[pages.length - 1]
+  const currentPath = currentPage?.route || ''
+
+  // 当前在商家工作台或商家子页面时，首页回到工作台
+  if (currentPath.startsWith('pages/provider/') || currentPath.startsWith('pages/admin/')) {
     return '/pages/provider/workbench'
   }
   return '/pages/index/index'

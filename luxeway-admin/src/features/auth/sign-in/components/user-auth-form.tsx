@@ -24,10 +24,9 @@ const SUPABASE_URL = 'https://qcsmavxqjofrhrdwgkpt.supabase.co'
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjc21hdnhxam9mcmhyZHdna3B0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3OTU2OTUsImV4cCI6MjA5MTM3MTY5NX0.zM4mVvvZAylQIXZFrnzaSAy_MGqTvR3hrSWfSSP8xRQ'
 
 const formSchema = z.object({
-  phone: z
+  account: z
     .string()
-    .min(11, '请输入正确的手机号')
-    .max(11, '手机号必须是11位'),
+    .min(1, '请输入账号或手机号'),
   password: z
     .string()
     .min(1, '请输入密码')
@@ -50,7 +49,7 @@ export function UserAuthForm({
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      phone: '',
+      account: '',
       password: '',
     },
   })
@@ -59,7 +58,7 @@ export function UserAuthForm({
     setIsLoading(true)
 
     try {
-      // 调用 phone-login 云函数
+      // 调用 phone-login 云函数（支持手机号或账号名）
       const response = await fetch(`${SUPABASE_URL}/functions/v1/phone-login`, {
         method: 'POST',
         headers: {
@@ -67,7 +66,7 @@ export function UserAuthForm({
           'apikey': SUPABASE_ANON_KEY,
         },
         body: JSON.stringify({
-          phone: data.phone,
+          account: data.account,
           password: data.password,
         }),
       })
@@ -98,13 +97,13 @@ export function UserAuthForm({
         setRefreshToken(result.session.refresh_token)
       }
 
-      toast.success(`欢迎回来，${result.user.name || result.user.roles[0]?.display_name || data.phone}!`)
+      toast.success(`欢迎回来，${result.user.name || result.user.roles[0]?.display_name || data.account}!`)
 
       // 重定向到目标页面或首页
       const targetPath = (search as any)?.redirect || '/'
       navigate({ to: targetPath, replace: true })
     } catch (error: any) {
-      toast.error(error.message || '登录失败，请检查手机号和密码')
+      toast.error(error.message || '登录失败，请检查账号和密码')
     } finally {
       setIsLoading(false)
     }
@@ -119,12 +118,12 @@ export function UserAuthForm({
       >
         <FormField
           control={form.control}
-          name='phone'
+          name='account'
           render={({ field }) => (
             <FormItem>
-              <FormLabel>手机号</FormLabel>
+              <FormLabel>账号 / 手机号</FormLabel>
               <FormControl>
-                <Input placeholder='请输入手机号' type='tel' maxLength={11} {...field} />
+                <Input placeholder='请输入账号或手机号' type='text' {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>

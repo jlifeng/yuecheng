@@ -1,19 +1,21 @@
 /**
- * Fulfillment state machine (Approach B).
+ * Fulfillment state machine (Approach B, no driver assignment).
  *
  * Two layers:
  * - DemandStatus (coarse): BIDDING / ACCEPTED / IN_PROGRESS / COMPLETED / CANCELLED
- * - FulfillmentStatus (fine): node-level progress for assign → trip → fee confirm
+ * - FulfillmentStatus (fine): node-level progress for trip → fee confirm
  *
  * Coarse ← fine mapping:
  * | fulfillment_status                         | demands.status |
  * |--------------------------------------------|----------------|
- * | PENDING_ASSIGN, ASSIGNED                   | ACCEPTED       |
+ * | PENDING_ASSIGN                             | ACCEPTED       |
  * | ON_THE_WAY … ARRIVED_DESTINATION,
  *   PENDING_FEE_CONFIRM                        | IN_PROGRESS    |
  * | COMPLETED                                  | COMPLETED      |
  * | CANCELLED                                  | CANCELLED      |
  *
+ * PENDING_ASSIGN means "driver assigned, waiting to start pickup" (not "waiting for assignment").
+ * The bid creator IS the executing driver — no separate assignment step.
  * First ON_THE_WAY moves coarse status from ACCEPTED → IN_PROGRESS.
  * Passenger fee confirm moves both layers to COMPLETED.
  */
@@ -23,7 +25,6 @@ import type { DemandStatus, FulfillmentStatus } from '@/types/order'
 /** Constant map of fulfillment status codes. */
 export const FULFILLMENT_STATUS = {
   PENDING_ASSIGN: 'PENDING_ASSIGN',
-  ASSIGNED: 'ASSIGNED',
   ON_THE_WAY: 'ON_THE_WAY',
   ARRIVED_PICKUP: 'ARRIVED_PICKUP',
   WAITING_PASSENGER: 'WAITING_PASSENGER',
@@ -39,7 +40,6 @@ export const FULFILLMENT_STATUS = {
 /** Ordered main path (optional WAITING / ARRIVING excluded). */
 export const FULFILLMENT_MAIN_PATH: FulfillmentStatus[] = [
   FULFILLMENT_STATUS.PENDING_ASSIGN,
-  FULFILLMENT_STATUS.ASSIGNED,
   FULFILLMENT_STATUS.ON_THE_WAY,
   FULFILLMENT_STATUS.ARRIVED_PICKUP,
   FULFILLMENT_STATUS.PASSENGER_BOARDED,
@@ -49,7 +49,6 @@ export const FULFILLMENT_MAIN_PATH: FulfillmentStatus[] = [
 ]
 
 export type FulfillmentActionCode =
-  | 'ASSIGN_DRIVER'
   | 'START_PICKUP'
   | 'ARRIVE_PICKUP'
   | 'START_WAITING'
@@ -82,8 +81,7 @@ export const TERMINAL_FULFILLMENT_STATUSES: ReadonlySet<FulfillmentStatus> = new
  * CANCEL is handled separately via canCancel / canTransition.
  */
 const FORWARD_TRANSITIONS: Readonly<Record<FulfillmentStatus, readonly FulfillmentStatus[]>> = {
-  PENDING_ASSIGN: [FULFILLMENT_STATUS.ASSIGNED],
-  ASSIGNED: [FULFILLMENT_STATUS.ON_THE_WAY],
+  PENDING_ASSIGN: [FULFILLMENT_STATUS.ON_THE_WAY],
   ON_THE_WAY: [FULFILLMENT_STATUS.ARRIVED_PICKUP],
   ARRIVED_PICKUP: [
     FULFILLMENT_STATUS.PASSENGER_BOARDED,
@@ -106,7 +104,6 @@ const FORWARD_TRANSITIONS: Readonly<Record<FulfillmentStatus, readonly Fulfillme
 const ACTION_META: Partial<
   Record<FulfillmentStatus, { code: FulfillmentActionCode; label: string }>
 > = {
-  ASSIGNED: { code: 'ASSIGN_DRIVER', label: '指派司机' },
   ON_THE_WAY: { code: 'START_PICKUP', label: '去接驾' },
   ARRIVED_PICKUP: { code: 'ARRIVE_PICKUP', label: '到达上车点' },
   WAITING_PASSENGER: { code: 'START_WAITING', label: '开始等待' },
@@ -128,7 +125,6 @@ export function getDemandStatusForFulfillment(
 
   switch (fulfillmentStatus) {
     case FULFILLMENT_STATUS.PENDING_ASSIGN:
-    case FULFILLMENT_STATUS.ASSIGNED:
       return 'ACCEPTED'
     case FULFILLMENT_STATUS.ON_THE_WAY:
     case FULFILLMENT_STATUS.ARRIVED_PICKUP:
