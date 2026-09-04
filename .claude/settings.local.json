@@ -46,7 +46,13 @@
       "Bash(python ./.trellis/scripts/task.py create \"我的订单页面\" --slug my-orders-page --assignee claude --parent \"04-28-incomplete-features-audit\")",
       "Bash(python ./.trellis/scripts/task.py list)",
       "Bash(python ./.trellis/scripts/task.py start \"04-28-order-creation-logic\")",
-      "Bash(python3 ./.trellis/scripts/task.py create \"我的订单页面\" --slug my-orders-page)"
+      "Bash(python3 ./.trellis/scripts/task.py create \"我的订单页面\" --slug my-orders-page)",
+      "Bash(python3 *)",
+      "Bash(xargs grep -l \"drivers\")",
+      "Bash(python ./.trellis/scripts/task.py create \"司机端车队邀请显式确认\" --slug driver-invite-confirm)",
+      "Bash(echo \"---EXIT $?\")",
+      "Bash(where supabase *)",
+      "Bash(python ./.trellis/scripts/task.py create \"接单工作台逻辑重构\" --slug workbench-logic-refactor)"
     ]
   }
 }

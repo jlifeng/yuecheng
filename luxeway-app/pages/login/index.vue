@@ -15,7 +15,7 @@
         <text class="tab-text">微信登录</text>
       </view>
       <view class="tab" :class="{ active: loginMode === 'phone' }" @click="loginMode = 'phone'">
-        <text class="tab-text">手机号登录</text>
+        <text class="tab-text">账号登录</text>
       </view>
     </view>
 
@@ -34,8 +34,8 @@
     <view class="login-content" v-if="loginMode === 'phone'">
       <view class="form-section">
         <view class="form-item">
-          <text class="form-label">手机号</text>
-          <input class="form-input" v-model="phoneForm.phone" type="number" placeholder="请输入手机号" maxlength="11" />
+          <text class="form-label">账号 / 手机号</text>
+          <input class="form-input" v-model="phoneForm.phone" type="text" placeholder="请输入账号或手机号" />
         </view>
         <view class="form-item">
           <text class="form-label">密码</text>
@@ -78,22 +78,36 @@ const phoneForm = ref({
 })
 
 const canPhoneLogin = computed(() => {
-  return phoneForm.value.phone.length === 11 &&
+  const result = phoneForm.value.phone.length >= 1 &&
          phoneForm.value.password.length >= 6 &&
          agreed.value &&
          !loading.value
+  console.log('canPhoneLogin:', result, {
+    account: phoneForm.value.phone.length,
+    password: phoneForm.value.password.length,
+    agreed: agreed.value,
+    loading: loading.value
+  })
+  return result
 })
 
 onMounted(() => {
-  // 检查是否已登录
+  // 检查是否已登录（必须有 accessToken，否则 userProfile 残留也不算登录）
   const userProfile = uni.getStorageSync('userProfile')
+  const accessToken = uni.getStorageSync('accessToken')
   const userRole = uni.getStorageSync('userRole')
-  if (userProfile && userRole) {
+  if (userProfile && accessToken && userRole) {
     navigateToHome(userRole)
+  } else if (userProfile && !accessToken) {
+    // userProfile 残留但 token 丢失：清掉残留的 userProfile，避免与首页形成跳转死循环
+    uni.removeStorageSync('userProfile')
+    uni.removeStorageSync('userRole')
+    uni.removeStorageSync('userRoles')
+    uni.removeStorageSync('userPermissions')
   }
 })
 
-// 微信登录（直接调用，无弹窗）
+// 微信登录
 const handleWechatLogin = async () => {
   if (!agreed.value) {
     uni.showToast({ title: '请先同意用户协议', icon: 'none' })
@@ -141,7 +155,6 @@ const handleWechatLogin = async () => {
       // 多角色用户默认乘客模式
       const roles = result.user.roles || []
       uni.setStorageSync('userRoles', roles)
-      uni.setStorageSync('userRole', 'passenger')  // 默认乘客模式
       uni.setStorageSync('userPermissions', result.user.permissions || [])
 
       uni.hideLoading()
@@ -162,6 +175,7 @@ const handleWechatLogin = async () => {
 
 // 手机号密码登录
 const handlePhoneLogin = async () => {
+  console.log('handlePhoneLogin called, canPhoneLogin:', canPhoneLogin.value, 'loading:', loading.value)
   if (!canPhoneLogin.value) return
 
   loading.value = true
@@ -173,7 +187,7 @@ const handlePhoneLogin = async () => {
       url: `${SUPABASE_URL}/functions/v1/phone-login`,
       method: 'POST',
       data: {
-        phone: phoneForm.value.phone,
+        account: phoneForm.value.phone,
         password: phoneForm.value.password
       },
       header: {
@@ -195,22 +209,22 @@ const handlePhoneLogin = async () => {
       uni.setStorageSync('userProfile', result.user)
       const roles = result.user.roles || []
       uni.setStorageSync('userRoles', roles)
-      uni.setStorageSync('userRole', 'passenger')  // 默认乘客模式
       uni.setStorageSync('userPermissions', result.user.permissions || [])
 
       uni.hideLoading()
+      loading.value = false  // 重置状态
       uni.showToast({ title: '登录成功', icon: 'success' })
       setTimeout(() => navigateToHome(roles, result.user.display_role), 500)
     } else {
       uni.hideLoading()
       uni.showToast({ title: result.error || '登录失败', icon: 'none' })
+      loading.value = false  // 确保重置
     }
   } catch (error) {
     uni.hideLoading()
     console.error('手机号登录失败:', error)
     uni.showToast({ title: '登录失败，请重试', icon: 'none' })
-  } finally {
-    loading.value = false
+    loading.value = false  // 确保重置
   }
 }
 
@@ -222,14 +236,19 @@ const showAgreement = (type: 'user' | 'privacy') => {
 // 根据角色跳转到对应首页（多角色用户默认乘客首页）
 const navigateToHome = (roles: any[], displayRole: string) => {
   // 管理员角色优先
-  const hasAdminRole = roles.some((r: any) => r.name === 'admin')
+  const safeRoles = Array.isArray(roles) ? roles : []
+  const hasAdminRole = safeRoles.some((r: any) => r.name === 'admin')
   if (hasAdminRole && displayRole === 'admin') {
+    // 管理员登录：写 admin 身份并直达平台管理页
+    uni.setStorageSync('userRole', 'admin')
+    uni.setStorageSync('currentRole', 'passenger')
     uni.reLaunch({ url: '/pages/admin/index' })
     return
   }
 
-  // 多角色用户或有商家角色，默认跳转到乘客首页
-  // 用户可以在"我的"页面切换到商家模式
+  // 非管理员：默认乘客模式
+  uni.setStorageSync('userRole', 'passenger')
+  uni.setStorageSync('currentRole', 'passenger')
   uni.reLaunch({ url: '/pages/index/index' })
 }
 </script>

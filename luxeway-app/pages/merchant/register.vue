@@ -413,6 +413,25 @@ const submitForm = async () => {
       })
     }
 
+    // 更新 profile 的 merchant_id
+    const updateProfileRes = await uni.request({
+      url: `${SUPABASE_URL}/rest/v1/profiles?id=eq.${profile.id}`,
+      method: 'PATCH',
+      data: { merchant_id: merchant.id },
+      header: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      }
+    })
+
+    // 同步更新本地存储的 userProfile
+    if (updateProfileRes.statusCode === 204 || updateProfileRes.statusCode === 200) {
+      profile.merchant_id = merchant.id
+      uni.setStorageSync('userProfile', profile)
+    }
+
     uni.showToast({ title: '申请已提交', icon: 'success' })
     uni.setStorageSync('currentRole', 'owner')
     setTimeout(() => {

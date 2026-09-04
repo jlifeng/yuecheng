@@ -23,7 +23,20 @@ describe('useOrderTimeline', () => {
     const { statusText, subText } = useOrderTimeline(detail)
 
     expect(statusText.value).toBe('等待司机接单')
-    expect(subText.value).toBe('系统正在寻找空闲司机，请稍候')
+    expect(subText.value).toBe('商家确认中，正在指派执行司机')
+  })
+
+  it('prefers fulfillmentStatus over coarse status for copy', () => {
+    const detail = ref(
+      createDetail({
+        status: 'IN_PROGRESS',
+        fulfillmentStatus: 'ON_THE_WAY'
+      })
+    )
+    const { statusText, subText } = useOrderTimeline(detail)
+
+    expect(statusText.value).toBe('司机去接驾')
+    expect(subText.value).toBe('司机已出发，正在前往上车点')
   })
 
   it('flags special waiting fee notice for WAITING_PASSENGER', () => {

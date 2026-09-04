@@ -1,7 +1,7 @@
 <template>
   <view class="page-container">
-    <!-- Role Tab - 固定在顶部，滚动时隐藏，只显示用户拥有的角色 -->
-    <view class="role-tab-bar" :class="{ hidden: isTabHidden }" :style="{ top: (statusBarHeight + 10) + 'px' }" v-if="isFleetMember">
+    <!-- Role Tab - 固定在顶部，滚动时隐藏，始终显示让乘客也能切换到车主入口 -->
+    <view class="role-tab-bar" :class="{ hidden: isTabHidden }" :style="{ top: (statusBarHeight + 10) + 'px' }">
       <view class="role-tab" :class="{ active: currentRole === 'passenger' }" @click="switchRole('passenger')">
         <text class="role-text">乘客</text>
       </view>
@@ -10,8 +10,8 @@
       </view>
     </view>
 
-    <!-- 定位按钮 - fixed定位 -->
-    <view class="locate-btn" :style="{ top: (statusBarHeight + 60) + 'px' }" @click="doGetLocation">
+    <!-- 定位按钮 - fixed定位，仅刷新地图当前位置，不写入出发地 -->
+    <view class="locate-btn" :style="{ top: (statusBarHeight + 60) + 'px' }" @click="locateCurrent">
       <uni-icons type="location-filled" size="18" color="#000"></uni-icons>
     </view>
 
@@ -112,7 +112,9 @@
           </view>
           <view class="trip-card" v-for="trip in ongoingTrips" :key="trip.id" @click="goToTripDetail(trip.id)">
             <view class="trip-card-header">
-              <view class="trip-status-badge" :class="trip.statusClass">{{ trip.statusDesc }}</view>
+              <view class="trip-status-badge" :class="trip.statusClass">
+                {{ trip.bidCount > 0 && trip.status === 'BIDDING' ? `已有${trip.bidCount}个报价` : trip.statusDesc }}
+              </view>
               <uni-icons type="forward" size="16" color="#000"></uni-icons>
             </view>
             <view class="trip-card-body">
@@ -129,10 +131,10 @@
         </view>
       </template>
 
-      <!-- Owner Content - 简化版：只展示进行中的订单 -->
+      <!-- Owner Content -->
       <template v-else>
-        <!-- 车主模式：展示进行中的订单 -->
-        <view v-if="isFleetMember" class="owner-home">
+        <!-- 已审核通过：展示进行中的订单 -->
+        <view v-if="merchantInfo?.review_status === 'approved'" class="owner-home">
           <!-- 进行中的订单 -->
           <view class="trips-area" v-if="providerOngoingOrders.length > 0">
             <view class="trips-header">
@@ -158,14 +160,24 @@
 
           <!-- 无订单时显示提示 -->
           <view v-else class="owner-empty">
-            <view class="empty-icon">🚗</view>
             <text class="empty-title">暂无进行中的订单</text>
             <text class="empty-desc">前往工作台查看待报价需求</text>
             <button class="empty-btn" @click="goToWorkbench">前往工作台</button>
           </view>
         </view>
 
-        <!-- 非车队成员：显示入驻引导 -->
+        <!-- 审核中：显示审核状态提示 -->
+        <view v-else-if="merchantInfo && merchantInfo.review_status !== 'approved'" class="owner-review-pending">
+          <view class="review-pending-icon">
+            <uni-icons type="info" size="48" color="#666"></uni-icons>
+          </view>
+          <text class="review-pending-title">入驻审核中</text>
+          <text class="review-pending-desc">您的入驻申请正在审核中，审核通过后即可接单报价</text>
+          <text class="review-pending-tip">预计 1-3 个工作日完成审核</text>
+          <button class="review-refresh-btn" @click="refreshMerchantStatus">刷新状态</button>
+        </view>
+
+        <!-- 未入驻：显示入驻引导 -->
         <view v-else class="owner-register-guide">
           <view class="guide-header">
             <text class="guide-title">成为车主，开始接单赚钱</text>
@@ -249,12 +261,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onShow, ref } from 'vue'
-import md5 from '@/utils/md5'
+import { computed, onMounted, ref } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
 import CustomTabBar from '@/components/CustomTabBar.vue'
 import { useDemandForm } from '@/composables/useDemandForm'
 import { submitDemand, fetchMyDemands } from '@/services/passenger'
-import { fetchPendingDemands } from '@/services/provider'
+import { fetchPendingDemands, fetchOngoingOrders } from '@/services/provider'
+import { refreshAccessToken } from '@/services/wechatAuth'
 import type { DemandType } from '@/types/demand'
 
 const SUPABASE_URL = 'https://qcsmavxqjofrhrdwgkpt.supabase.co'
@@ -297,7 +310,7 @@ const demandTypeLabels: Record<DemandType, string> = {
 // Location state
 const latitude = ref(30.572269)
 const longitude = ref(114.296389)
-const currentAddress = ref('获取当前位置中...')
+const currentAddress = ref('点击选择出发地')
 const showTimeDrawer = ref(false)
 const displayTime = ref('')
 
@@ -420,16 +433,42 @@ const loadMyTrips = async () => {
       .filter(d => activeStatuses.includes(d.status))
       .slice(0, 3)
 
-    ongoingTrips.value = activeDemands.map(d => ({
-      id: d.id,
-      statusDesc: statusDescMap[d.status] || '未知状态',
-      statusClass: statusClassMap[d.status] || 'status-pending',
-      time: formatDemandTime(d.earliest_departure, d.latest_departure),
-      destination: d.end_address,
-      confirmedPrice: null,
-      bidCount: 0,
-      status: d.status
-    }))
+    // 查询每个行程的报价数量
+    const accessToken = uni.getStorageSync('accessToken')
+    const tripsWithBidCount = await Promise.all(
+      activeDemands.map(async (d) => {
+        let bidCount = 0
+        if (d.status === 'BIDDING' && accessToken) {
+          try {
+            const res = await uni.request({
+              url: `${SUPABASE_URL}/rest/v1/bids?demand_id=eq.${d.id}&select=id`,
+              method: 'GET',
+              header: {
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${accessToken}`
+              }
+            })
+            if (res.statusCode === 200 && res.data) {
+              bidCount = (res.data as any[]).length
+            }
+          } catch (e) {
+            console.error('查询报价数量失败', e)
+          }
+        }
+        return {
+          id: d.id,
+          statusDesc: statusDescMap[d.status] || '未知状态',
+          statusClass: statusClassMap[d.status] || 'status-pending',
+          time: formatDemandTime(d.earliest_departure, d.latest_departure),
+          destination: d.end_address,
+          confirmedPrice: null,
+          bidCount,
+          status: d.status
+        }
+      })
+    )
+
+    ongoingTrips.value = tripsWithBidCount
     console.log('ongoingTrips:', ongoingTrips.value)
   } catch (e) {
     console.error('加载行程列表失败', e)
@@ -439,7 +478,7 @@ const loadMyTrips = async () => {
 // 加载待报价订单（商家端）
 const loadPendingDemands = async () => {
   try {
-    const demands = await fetchPendingDemands()
+    const { data: demands } = await fetchPendingDemands()
     pendingDemands.value = demands.map(d => ({
       id: d.id,
       start: d.start_address,
@@ -453,12 +492,30 @@ const loadPendingDemands = async () => {
   }
 }
 
+// 加载进行中订单（商家端首页）
+const loadProviderOngoingOrders = async () => {
+  try {
+    const { data } = await fetchOngoingOrders(1, 3)  // 首页只展示3条
+    providerOngoingOrders.value = data.map(o => ({
+      id: o.id,
+      start: o.start,
+      end: o.end,
+      time: formatDemandTime(o.earliestDeparture, o.latestDeparture),
+      statusDesc: o.statusDesc || '进行中'
+    }))
+    console.log('providerOngoingOrders:', providerOngoingOrders.value)
+  } catch (e) {
+    console.error('加载进行中订单失败', e)
+  }
+}
+
 // Role switching
 const switchRole = (role: 'passenger' | 'owner') => {
   currentRole.value = role
   uni.setStorageSync('currentRole', role)
-  // 同步更新 userRole storage（用于其他页面判断）
-  uni.setStorageSync('userRole', role === 'owner' ? 'provider' : 'passenger')
+  // 注意：不再修改 userRole storage
+  // 首页的角色 Tab 只是切换视图，不影响全局身份
+  // 全局身份（userRole）只在"我的"页面明确切换时才改
   if (role === 'owner') fetchMerchantInfo()
 }
 
@@ -497,9 +554,10 @@ const fetchMerchantInfo = async () => {
     const data = res.data as any[]
     if (data?.length > 0) {
       merchantInfo.value = data[0]
-      // 如果商家审核通过，加载待报价订单
+      // 如果商家审核通过，加载待报价订单 + 进行中订单
       if (merchantInfo.value?.review_status === 'approved') {
         loadPendingDemands()
+        loadProviderOngoingOrders()
       }
     }
   } catch (e) { console.error('fetch merchant info error', e) }
@@ -646,61 +704,32 @@ const onRemarksInput = (e: any) => {
   setRequirements(e.detail.value)
 }
 
-// Location
-const doGetLocation = () => {
-  // 先设置一个默认状态
-  currentAddress.value = '获取位置中...'
-
+// 定位：仅更新地图坐标（让地图显示当前位置 + 供 chooseLocation 初始定位）
+// 不把地址写入出发地输入框——出发地保持手动选择
+const locateCurrent = () => {
   uni.getLocation({
     type: 'gcj02',
-    isHighAccuracy: true,
-    success: (res) => {
+    // 不用 isHighAccuracy，某些真机/模拟器高精度会失败，普通精度足够
+    success: (res: any) => {
       latitude.value = res.latitude
       longitude.value = res.longitude
-
-      // 安卓真机可能不支持 geocode，直接调用腾讯地图API解析
-      const KEY = 'HTLBZ-PFF33-AFM3W-O5YM2-2O4VJ-7FF2H'
-      const SK = 'Yvi4a0SYxKXH1YqOMmGuvVxiPsg2YewD'
-      const params = { key: KEY, location: `${res.latitude},${res.longitude}`, get_poi: '0' }
-      const keys = Object.keys(params).sort()
-      let qs = keys.map(k => `${k}=${params[k]}`).join('&')
-      const path = '/ws/geocoder/v1'
-      const sig = md5(`${path}?${qs}${SK}`)
-
-      uni.request({
-        url: 'https://apis.map.qq.com' + path,
-        data: { ...params, sig },
-        timeout: 10000,
-        success: (apiRes: any) => {
-          console.log('地图API响应:', apiRes.data)
-          if (apiRes.data?.status === 0) {
-            const result = apiRes.data.result
-            // 优先使用推荐地址，其次使用标准地址
-            const resolved = result.formatted_addresses?.recommend || result.address || '当前位置'
-            currentAddress.value = resolved
-            setStartAddress(resolved)
-          } else {
-            console.log('地图API失败:', apiRes.data?.message)
-            // 如果API失败，使用坐标作为默认地址
-            currentAddress.value = `当前位置 (${res.latitude.toFixed(4)}, ${res.longitude.toFixed(4)})`
-            setStartAddress(currentAddress.value)
-          }
-        },
-        fail: (err) => {
-          console.log('地图API请求失败:', err)
-          // 使用坐标作为默认地址
-          currentAddress.value = `当前位置 (${res.latitude.toFixed(4)}, ${res.longitude.toFixed(4)})`
-          setStartAddress(currentAddress.value)
-        }
-      })
     },
-    fail: (err) => {
-      console.log('定位失败:', err)
-      // 使用默认坐标（武汉）
-      latitude.value = 30.572269
-      longitude.value = 114.296389
-      currentAddress.value = '定位失败，点击选择出发地'
-      uni.showToast({ title: '定位失败，请手动选择出发地', icon: 'none' })
+    fail: (err: any) => {
+      console.error('定位失败:', err)
+      // 授权被拒：引导用户去设置开启
+      if (err?.errMsg?.includes('auth') || err?.errMsg?.includes('deny') || err?.errMsg?.includes('authorize')) {
+        uni.showModal({
+          title: '需要定位权限',
+          content: '获取位置需要授权，请在设置中开启定位权限后重试',
+          confirmText: '去设置',
+          confirmColor: '#000',
+          success: (m) => {
+            if (m.confirm) uni.openSetting()
+          }
+        })
+      } else {
+        uni.showToast({ title: '定位失败，请检查定位服务', icon: 'none' })
+      }
     }
   })
 }
@@ -736,7 +765,7 @@ const submitDemandDirectly = async () => {
     uni.showToast({ title: '请先输入目的地', icon: 'none' })
     return
   }
-  if (!currentAddress.value || currentAddress.value === '获取当前位置中...' || currentAddress.value === '定位失败，请手动选择') {
+  if (!currentAddress.value || currentAddress.value === '点击选择出发地') {
     uni.showToast({ title: '请先选择起点', icon: 'none' })
     return
   }
@@ -781,7 +810,7 @@ onMounted(() => {
   const sysInfo = uni.getSystemInfoSync()
   statusBarHeight.value = sysInfo.statusBarHeight || 0
 
-  doGetLocation()
+  locateCurrent() // 仅定位刷新地图，不写入出发地
   loadMyTrips() // 加载行程列表
 
   // 初始化角色模式
@@ -791,12 +820,18 @@ onMounted(() => {
     r.name === 'merchant_owner' || r.name === 'merchant_dispatcher' || r.name === 'merchant_driver'
   ) || userProfile?.merchant_id
 
+  // 始终拉取一次商家信息（覆盖入驻审核中、未分配 merchant 角色的情况）
+  // fetchMerchantInfo 内部会按 owner_user_id 查询，pending/approved 都会填充 merchantInfo
+  fetchMerchantInfo()
+
   // 如果用户有商家角色，检查之前保存的角色模式
   const savedRole = uni.getStorageSync('currentRole')
   if (hasMerchantRole && savedRole === 'owner') {
     currentRole.value = 'owner'
-    fetchMerchantInfo()
     loadPendingDemands()
+  } else if (userProfile?.merchant_id && savedRole === 'owner') {
+    // 入驻审核中：没有 merchant 角色但有 merchant_id，保留车主视图
+    currentRole.value = 'owner'
   } else {
     // 默认乘客模式（即使之前保存的是 owner，但没有商家角色也要重置）
     currentRole.value = 'passenger'
@@ -811,12 +846,27 @@ onMounted(() => {
 })
 
 // 每次显示页面时检查登录状态
-onShow(() => {
+onShow(async () => {
   const userProfile = uni.getStorageSync('userProfile')
-  const accessToken = uni.getStorageSync('accessToken')
+  let accessToken = uni.getStorageSync('accessToken')
+  const refreshToken = uni.getStorageSync('refreshToken')
 
-  // 如果未登录，跳转到登录页
+  // accessToken 缺失但 refreshToken 在：尝试静默刷新，避免因 token 过期反复跳登录页
+  if (!accessToken && refreshToken) {
+    console.log('onShow - accessToken 缺失，尝试用 refreshToken 刷新')
+    const newToken = await refreshAccessToken()
+    if (newToken) {
+      accessToken = newToken
+    }
+  }
+
+  // 仍未登录（无 userProfile 或 accessToken）：清掉残留后跳登录页
   if (!userProfile || !accessToken) {
+    // 清掉可能残留的 userProfile/userRole，避免与登录页 onMounted 形成跳转死循环
+    uni.removeStorageSync('userProfile')
+    uni.removeStorageSync('userRole')
+    uni.removeStorageSync('userRoles')
+    uni.removeStorageSync('userPermissions')
     uni.reLaunch({ url: '/pages/login/index' })
     return
   }
@@ -1094,19 +1144,24 @@ const loadFleetInfo = async (merchantId: string) => {
 /* 文本域 */
 .textarea-row {
   flex-direction: column;
-  align-items: flex-start;
+  align-items: stretch;
 }
 
 .remarks-input {
-  flex: 1;
-  width: 100%;
+  width: auto;
   margin-top: 12rpx;
+  margin-left: 8rpx;
+  margin-right: 8rpx;
   font-size: 28rpx;
   color: #000;
   background: #fff;
   border-radius: 8rpx;
-  padding: 12rpx;
-  min-height: 80rpx;
+  padding: 16rpx;
+  /* 固定高度区间，避免 iOS 上 auto-height + flex:1 撑出异常高度并无限滚动 */
+  height: 120rpx;
+  min-height: 120rpx;
+  max-height: 240rpx;
+  box-sizing: border-box;
 }
 
 /* Confirm Button - Uber风格黑色大按钮 */
@@ -1163,12 +1218,6 @@ const loadFleetInfo = async (merchantId: string) => {
 .owner-empty {
   text-align: center;
   padding: 80rpx 32rpx;
-}
-
-.owner-empty .empty-icon {
-  font-size: 80rpx;
-  display: block;
-  margin-bottom: 24rpx;
 }
 
 .owner-empty .empty-title {
@@ -1275,6 +1324,56 @@ const loadFleetInfo = async (merchantId: string) => {
 /* ═══════════════════════════════════════════════════════════════
    OWNER CONTENT - Uber风格
    ═══════════════════════════════════════════════════════════════ */
+
+/* 审核中状态 */
+.owner-review-pending {
+  text-align: center;
+  padding: 60rpx 0;
+}
+
+.review-pending-icon {
+  margin-bottom: 24rpx;
+}
+
+.review-pending-title {
+  font-size: 36rpx;
+  color: #000;
+  font-weight: 600;
+  display: block;
+  margin-bottom: 16rpx;
+}
+
+.review-pending-desc {
+  font-size: 28rpx;
+  color: #666;
+  display: block;
+  margin-bottom: 12rpx;
+}
+
+.review-pending-tip {
+  font-size: 24rpx;
+  color: #999;
+  display: block;
+  margin-bottom: 40rpx;
+}
+
+.review-refresh-btn {
+  background: #f5f5f5;
+  color: #000;
+  border-radius: 48rpx;
+  height: 80rpx;
+  font-size: 28rpx;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 280rpx;
+  margin: 0 auto;
+}
+
+.review-refresh-btn::after {
+  border: none;
+}
 
 .owner-register-guide {
   text-align: center;

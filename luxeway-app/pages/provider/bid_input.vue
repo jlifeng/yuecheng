@@ -125,8 +125,8 @@
         <text class="char-count">{{ bidRemark.length }}/200</text>
       </view>
 
-      <!-- 费用明细 -->
-      <view class="fee-breakdown" v-if="bidPrice">
+      <!-- 费用明细（初期免费，服务费为0时不显示） -->
+      <view class="fee-breakdown" v-if="bidPrice && platformFeeRate > 0">
         <view class="fee-row">
           <text class="fee-label">报价金额</text>
           <text class="fee-value">¥{{ bidPrice }}</text>
@@ -180,7 +180,7 @@ const availableVehicles = ref<any[]>([]);
 const selectedVehicle = ref<any>(null);
 const bidPrice = ref('');
 const bidRemark = ref('');
-const platformFeeRate = 5;
+const platformFeeRate = 0; // 初期完全免费
 const accessHint = ref('');
 
 // 建议价格
@@ -217,12 +217,99 @@ const getVehicleColor = (colorName: string) => {
   return colorMap[colorName] || '#ddd';
 };
 
+// 检查车辆时间冲突
+const checkVehicleConflict = async (vehicleId: string): Promise<{ hasConflict: boolean; conflictInfo?: string }> => {
+  const accessToken = uni.getStorageSync('accessToken')
+  if (!accessToken || !orderInfo.value.id) {
+    return { hasConflict: false }
+  }
+
+  try {
+    // 获取当前需求的时间范围
+    const demandRes = await uni.request({
+      url: `${SUPABASE_URL}/rest/v1/demands?id=eq.${orderInfo.value.id}&select=earliest_departure,latest_departure`,
+      method: 'GET',
+      header: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${accessToken}`
+      }
+    })
+
+    if (demandRes.statusCode !== 200 || !(demandRes.data as any[])?.length) {
+      return { hasConflict: false }
+    }
+
+    const demand = (demandRes.data as any[])[0]
+    const newStart = new Date(demand.earliest_departure).getTime()
+    const newEnd = new Date(demand.latest_departure).getTime()
+
+    // 查询该车辆已被接受的订单
+    const bidsRes = await uni.request({
+      url: `${SUPABASE_URL}/rest/v1/bids?vehicle_id=eq.${vehicleId}&status=eq.ACCEPTED&select=demand_id,demands(id,earliest_departure,latest_departure,start_address,end_address,status)`,
+      method: 'GET',
+      header: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${accessToken}`
+      }
+    })
+
+    if (bidsRes.statusCode !== 200 || !(bidsRes.data as any[])?.length) {
+      return { hasConflict: false }
+    }
+
+    // 检查每个已接受订单的时间是否冲突
+    for (const bid of (bidsRes.data as any[])) {
+      const demandInfo = bid.demands
+      if (!demandInfo || demandInfo.status === 'COMPLETED' || demandInfo.status === 'CANCELLED') {
+        continue
+      }
+
+      const existStart = new Date(demandInfo.earliest_departure).getTime()
+      const existEnd = new Date(demandInfo.latest_departure).getTime()
+
+      // 时间重叠判断：两个时间段有交集
+      // 重叠条件：newStart < existEnd && newEnd > existStart
+      if (newStart < existEnd && newEnd > existStart) {
+        const formatTimeStr = (t: string) => {
+          const d = new Date(t)
+          return `${d.getMonth() + 1}月${d.getDate()}日 ${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`
+        }
+        return {
+          hasConflict: true,
+          conflictInfo: `该车辆已有安排：${demandInfo.start_address} → ${demandInfo.end_address}\n时间：${formatTimeStr(demandInfo.earliest_departure)} - ${formatTimeStr(demandInfo.latest_departure)}`
+        }
+      }
+    }
+
+    return { hasConflict: false }
+  } catch (e) {
+    console.error('检查车辆冲突失败', e)
+    return { hasConflict: false }
+  }
+}
+
 // 选择车辆
-const selectVehicle = (vehicle: any) => {
+const selectVehicle = async (vehicle: any) => {
   if (vehicle.status !== 'active') {
     uni.showToast({ title: '该车辆维护中，无法选择', icon: 'none' });
     return;
   }
+
+  // 检查时间冲突
+  uni.showLoading({ title: '检查车辆安排...' })
+  const conflict = await checkVehicleConflict(vehicle.id)
+  uni.hideLoading()
+
+  if (conflict.hasConflict) {
+    uni.showModal({
+      title: '车辆时间冲突',
+      content: conflict.conflictInfo || '该车辆此时段已有安排，请选择其他车辆',
+      showCancel: false,
+      confirmText: '知道了'
+    })
+    return
+  }
+
   selectedVehicle.value = vehicle;
 };
 
@@ -353,7 +440,8 @@ const submitBidHandler = async () => {
       demandId: orderInfo.value.id,
       price: parseFloat(bidPrice.value),
       carModel: selectedVehicle.value?.model || undefined,
-      message: bidRemark.value || undefined
+      message: bidRemark.value || undefined,
+      vehicleId: selectedVehicle.value?.id || undefined
     });
     uni.hideLoading();
     uni.showToast({ title: '报价成功', icon: 'success' });
