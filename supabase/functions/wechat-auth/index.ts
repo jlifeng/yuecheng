@@ -41,7 +41,10 @@ Deno.serve(async (req: Request) => {
     const wxAuthData = await wxAuthRes.json()
 
     if (wxAuthData.errcode) {
-      console.error('微信登录失败:', wxAuthData)
+      console.error('微信登录失败:', {
+        errcode: wxAuthData.errcode,
+        errmsg: wxAuthData.errmsg
+      })
       return new Response(JSON.stringify({ success: false, error: '微信登录失败' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
@@ -101,7 +104,7 @@ Deno.serve(async (req: Request) => {
       })
 
       if (authError) {
-        console.error('创建用户失败:', authError)
+        console.error('创建用户失败:', authError.message)
         return new Response(JSON.stringify({ success: false, error: '创建用户失败' }), {
           status: 500,
           headers: { 'Content-Type': 'application/json' }
@@ -127,7 +130,7 @@ Deno.serve(async (req: Request) => {
         .single()
 
       if (createError) {
-        console.error('创建 profile 失败:', createError)
+        console.error('创建 profile 失败:', createError.message)
       } else {
         userProfile = newProfile
         // 分配默认角色
@@ -220,7 +223,7 @@ Deno.serve(async (req: Request) => {
     })
 
   } catch (e) {
-    console.error('wechat-auth error:', e)
+    console.error('wechat-auth error:', e instanceof Error ? e.message : 'unknown error')
     return new Response(JSON.stringify({ success: false, error: '服务器错误' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }

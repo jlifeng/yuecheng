@@ -65,8 +65,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 
-const SUPABASE_URL = 'https://qcsmavxqjofrhrdwgkpt.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjc21hdnhxam9mcmhyZHdna3B0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3OTU2OTUsImV4cCI6MjA5MTM3MTY5NX0.zM4mVvvZAylQIXZFrnzaSAy_MGqTvR3hrSWfSSP8xRQ'
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase'
 
 const loginMode = ref<'wechat' | 'phone'>('wechat')
 const loading = ref(false)
@@ -124,7 +123,7 @@ const handleWechatLogin = async () => {
       throw new Error('获取微信登录凭证失败')
     }
 
-    console.log('微信登录 code:', loginRes.code)
+    console.log('微信登录 code 已获取:', !!loginRes.code)
 
     // 调用后端进行微信登录
     const res = await uni.request({
@@ -166,7 +165,7 @@ const handleWechatLogin = async () => {
     }
   } catch (error: any) {
     uni.hideLoading()
-    console.error('微信登录异常:', error)
+    console.error('微信登录异常:', error instanceof Error ? error.message : 'unknown error')
     uni.showToast({ title: '登录失败，请重试', icon: 'none' })
   } finally {
     loading.value = false
@@ -222,7 +221,7 @@ const handlePhoneLogin = async () => {
     }
   } catch (error) {
     uni.hideLoading()
-    console.error('手机号登录失败:', error)
+    console.error('手机号登录失败:', error instanceof Error ? error.message : 'unknown error')
     uni.showToast({ title: '登录失败，请重试', icon: 'none' })
     loading.value = false  // 确保重置
   }

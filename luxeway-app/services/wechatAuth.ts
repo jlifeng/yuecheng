@@ -3,10 +3,7 @@
  * 处理小程序微信授权登录流程
  */
 
-import { getSupabase, UserProfile } from '../lib/supabase'
-
-const SUPABASE_URL = 'https://qcsmavxqjofrhrdwgkpt.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjc21hdnhxam9mcmhyZHdna3B0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3OTU2OTUsImV4cCI6MjA5MTM3MTY5NX0.zM4mVvvZAylQIXZFrnzaSAy_MGqTvR3hrSWfSSP8xRQ'
+import { getSupabase, SUPABASE_URL, SUPABASE_ANON_KEY, UserProfile } from '../lib/supabase'
 
 // Edge Function URL (v2 版本，修复了 token 返回问题)
 const WECHAT_LOGIN_URL = `${SUPABASE_URL}/functions/v1/wechat-login-v2`
@@ -49,23 +46,16 @@ export async function wechatLogin(): Promise<WechatLoginResult> {
     })
 
     const data = response.data as any
-    console.log('=== Edge Function response ===', JSON.stringify(data, null, 2));
 
     if (!data.success) {
       return { success: false, error: data.error || '登录失败' }
     }
 
     // 3. 设置 Supabase session（如果有 token）
-    console.log('=== Edge Function 返回数据 ===')
-    console.log('session:', JSON.stringify(data.session, null, 2))
-    console.log('user:', JSON.stringify(data.user, null, 2))
-
     if (data.session?.access_token) {
       // 保存 accessToken 到本地存储
       uni.setStorageSync('accessToken', data.session.access_token)
       uni.setStorageSync('refreshToken', data.session.refresh_token || '')
-      console.log('accessToken 已保存，长度:', data.session.access_token.length)
-
       // 小程序环境跳过 setSession，直接使用 token 调用 REST API
       // await getSupabase().auth.setSession({
       //   access_token: data.session.access_token,
@@ -93,7 +83,7 @@ export async function wechatLogin(): Promise<WechatLoginResult> {
       user: data.user
     }
   } catch (error: any) {
-    console.error('微信登录错误:', error)
+    console.error('微信登录错误:', error instanceof Error ? error.message : 'unknown error')
     return { success: false, error: error.message || '登录异常' }
   }
 }
@@ -113,7 +103,7 @@ async function fetchFullProfile(accessToken: string, userId: string): Promise<Us
       }
     })
 
-    console.log('fetchFullProfile response:', res.statusCode, res.data)
+    console.log('fetchFullProfile response:', res.statusCode)
 
     if (res.statusCode !== 200) {
       console.error('fetchFullProfile 状态码错误:', res.statusCode)
@@ -126,7 +116,7 @@ async function fetchFullProfile(accessToken: string, userId: string): Promise<Us
     }
     return null
   } catch (e) {
-    console.error('获取完整用户信息失败:', e)
+    console.error('获取完整用户信息失败:', e instanceof Error ? e.message : 'unknown error')
     return null
   }
 }
@@ -209,7 +199,7 @@ export async function refreshAccessToken(): Promise<string | null> {
     }
     return null
   } catch (e) {
-    console.error('Token 刷新失败:', e)
+    console.error('Token 刷新失败:', e instanceof Error ? e.message : 'unknown error')
     return null
   }
 }

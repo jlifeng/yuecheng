@@ -270,8 +270,7 @@ import { fetchPendingDemands, fetchOngoingOrders } from '@/services/provider'
 import { refreshAccessToken } from '@/services/wechatAuth'
 import type { DemandType } from '@/types/demand'
 
-const SUPABASE_URL = 'https://qcsmavxqjofrhrdwgkpt.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjc21hdnhxam9mcmhyZHdna3B0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3OTU2OTUsImV4cCI6MjA5MTM3MTY5NX0.zM4mVvvZAylQIXZFrnzaSAy_MGqTvR3hrSWfSSP8xRQ'
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase'
 
 // Role state
 const currentRole = ref<'passenger' | 'owner'>('passenger')
@@ -426,7 +425,7 @@ const loadMyTrips = async () => {
   try {
     console.log('=== loadMyTrips 开始 ===')
     const demands = await fetchMyDemands()
-    console.log('获取到的 demands 数量:', demands.length, '数据:', demands)
+    console.log('获取到的 demands 数量:', demands.length)
 
     // 只筛选进行中的行程，最多展示3条
     const activeDemands = demands
@@ -452,7 +451,7 @@ const loadMyTrips = async () => {
               bidCount = (res.data as any[]).length
             }
           } catch (e) {
-            console.error('查询报价数量失败', e)
+            console.error('查询报价数量失败', e instanceof Error ? e.message : 'unknown error')
           }
         }
         return {
@@ -469,9 +468,9 @@ const loadMyTrips = async () => {
     )
 
     ongoingTrips.value = tripsWithBidCount
-    console.log('ongoingTrips:', ongoingTrips.value)
+    console.log('ongoingTrips 数量:', ongoingTrips.value.length)
   } catch (e) {
-    console.error('加载行程列表失败', e)
+    console.error('加载行程列表失败', e instanceof Error ? e.message : 'unknown error')
   }
 }
 
@@ -488,7 +487,7 @@ const loadPendingDemands = async () => {
       type: d.type
     }))
   } catch (e) {
-    console.error('加载待报价订单失败', e)
+    console.error('加载待报价订单失败', e instanceof Error ? e.message : 'unknown error')
   }
 }
 
@@ -503,9 +502,9 @@ const loadProviderOngoingOrders = async () => {
       time: formatDemandTime(o.earliestDeparture, o.latestDeparture),
       statusDesc: o.statusDesc || '进行中'
     }))
-    console.log('providerOngoingOrders:', providerOngoingOrders.value)
+    console.log('providerOngoingOrders 数量:', providerOngoingOrders.value.length)
   } catch (e) {
-    console.error('加载进行中订单失败', e)
+    console.error('加载进行中订单失败', e instanceof Error ? e.message : 'unknown error')
   }
 }
 
@@ -550,7 +549,7 @@ const fetchMerchantInfo = async () => {
         'Authorization': accessToken ? `Bearer ${accessToken}` : `Bearer ${SUPABASE_ANON_KEY}`
       }
     })
-    console.log('merchant fetch result:', res.statusCode, res.data)
+    console.log('merchant fetch result:', res.statusCode)
     const data = res.data as any[]
     if (data?.length > 0) {
       merchantInfo.value = data[0]
@@ -560,7 +559,7 @@ const fetchMerchantInfo = async () => {
         loadProviderOngoingOrders()
       }
     }
-  } catch (e) { console.error('fetch merchant info error', e) }
+  } catch (e) { console.error('fetch merchant info error', e instanceof Error ? e.message : 'unknown error') }
 }
 
 const refreshMerchantStatus = () => { fetchMerchantInfo(); uni.showToast({ title: '已刷新', icon: 'success' }) }
@@ -715,7 +714,7 @@ const locateCurrent = () => {
       longitude.value = res.longitude
     },
     fail: (err: any) => {
-      console.error('定位失败:', err)
+      console.error('定位失败')
       // 授权被拒：引导用户去设置开启
       if (err?.errMsg?.includes('auth') || err?.errMsg?.includes('deny') || err?.errMsg?.includes('authorize')) {
         uni.showModal({
@@ -905,7 +904,7 @@ const loadFleetInfo = async (merchantId: string) => {
       })
     }
   } catch (e) {
-    console.error('加载车队信息失败', e)
+    console.error('加载车队信息失败', e instanceof Error ? e.message : 'unknown error')
   }
 }
 </script>

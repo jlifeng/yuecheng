@@ -101,8 +101,8 @@ export function Users() {
       setUsers(result.data || [])
       setTotal(result.count || 0)
       setCurrentPage(page)
-    } catch (error) {
-      console.error('Failed to load users:', error)
+    } catch {
+      // Keep the existing data visible when a refresh fails.
     } finally {
       setLoading(false)
       loadingRef.current = false
@@ -202,8 +202,8 @@ export function Users() {
       })
       handleEditDialogClose(false)
       loadData(currentPage)
-    } catch (error) {
-      console.error('Failed to update user:', error)
+    } catch {
+      // The API helper reports the failure through its return path.
     }
   }
 
@@ -222,8 +222,8 @@ export function Users() {
       setDisableDialogOpen(false)
       setUserToDisable(null)
       loadData(currentPage)
-    } catch (error) {
-      console.error('Failed to toggle user status:', error)
+    } catch {
+      // The API helper reports the failure through its return path.
     }
   }
 

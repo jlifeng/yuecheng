@@ -70,48 +70,50 @@
 
 ## 6.案例参考
 
+以下截图来自开发过程，包含业务演示数据，未随开源版本提交。发布前请替换为已脱敏的演示图，并将图片放回 `assets/` 目录。
+
 ### 6.1 跑大圈包车
 
 人找车：
 
-![image-20260408202348318](K:\myproject\Plain sailing\assets\image-20260408202348318.png)
+（开发截图未随开源版本提交，请替换为已脱敏的演示图。）
 
 车找人：
 
-![image-20260408202417483](K:\myproject\Plain sailing\assets\image-20260408202417483.png)
+（开发截图未随开源版本提交，请替换为已脱敏的演示图。）
 
 
 
 车队入驻：
 
-![image-20260408202441761](K:\myproject\Plain sailing\assets\image-20260408202441761.png)
+（开发截图未随开源版本提交，请替换为已脱敏的演示图。）
 
 
 
-![image-20260408202457490](K:\myproject\Plain sailing\assets\image-20260408202457490.png)
+（开发截图未随开源版本提交，请替换为已脱敏的演示图。）
 
 我的：
 
-![image-20260408202508491](K:\myproject\Plain sailing\assets\image-20260408202508491.png)
+（开发截图未随开源版本提交，请替换为已脱敏的演示图。）
 
 ### 6.2 租巴界
 
 首页:
 
-![image-20260408202746482](K:\myproject\Plain sailing\assets\image-20260408202746482.png)
+（开发截图未随开源版本提交，请替换为已脱敏的演示图。）
 
 车队：
 
-![image-20260408202805932](K:\myproject\Plain sailing\assets\image-20260408202805932.png)
+（开发截图未随开源版本提交，请替换为已脱敏的演示图。）
 
 商家：
 
-![image-20260408202823439](K:\myproject\Plain sailing\assets\image-20260408202823439.png)
+（开发截图未随开源版本提交，请替换为已脱敏的演示图。）
 
 通讯录：
 
-![image-20260408202839836](K:\myproject\Plain sailing\assets\image-20260408202839836.png)
+（开发截图未随开源版本提交，请替换为已脱敏的演示图。）
 
 个人中心：
 
-![image-20260408202854385](K:\myproject\Plain sailing\assets\image-20260408202854385.png)
+（开发截图未随开源版本提交，请替换为已脱敏的演示图。）

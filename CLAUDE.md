@@ -69,7 +69,7 @@ npm run build:mp-weixin
 ### 地图集成
 
 使用腾讯地图 WebService API 进行地址解析：
-- KEY 和 SK 存在 `pages/index/index.vue:274` 中
+- 地图公开 Key 通过 `VITE_TENCENT_MAP_KEY` 注入；签名 SK 只能保存在服务端，禁止放入小程序。
 - 使用 MD5 签名算法进行 API 认证
 - 支持 GCJ-02 坐标系（火星坐标系）
 
@@ -197,8 +197,8 @@ interface Bid {
 #### Supabase REST API 基础配置
 
 ```typescript
-const SUPABASE_URL = 'https://qcsmavxqjofrhrdwgkpt.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 // 请求头配置
 const headers = {

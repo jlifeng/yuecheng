@@ -157,8 +157,7 @@ import { ref, computed, onMounted } from 'vue';
 import { onLoad } from '@dcloudio/uni-app'
 import { submitBid } from '@/services/provider'
 
-const SUPABASE_URL = 'https://qcsmavxqjofrhrdwgkpt.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjc21hdnhxam9mcmhyZHdna3B0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3OTU2OTUsImV4cCI6MjA5MTM3MTY5NX0.zM4mVvvZAylQIXZFrnzaSAy_MGqTvR3hrSWfSSP8xRQ'
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase'
 
 // 需求信息
 const demandInfo = ref<any>(null)
@@ -283,7 +282,7 @@ const checkVehicleConflict = async (vehicleId: string): Promise<{ hasConflict: b
 
     return { hasConflict: false }
   } catch (e) {
-    console.error('检查车辆冲突失败', e)
+    console.error('检查车辆冲突失败', e instanceof Error ? e.message : 'unknown error')
     return { hasConflict: false }
   }
 }
@@ -376,7 +375,7 @@ const loadDemandDetail = async (demandId: string) => {
       }
     }
   } catch (e) {
-    console.error('加载需求详情失败', e)
+    console.error('加载需求详情失败', e instanceof Error ? e.message : 'unknown error')
   }
 }
 
@@ -399,7 +398,7 @@ const loadVehicles = async () => {
       }
     })
 
-    console.log('车辆查询结果:', res.statusCode, res.data)
+    console.log('车辆查询结果:', res.statusCode)
 
     if (res.statusCode === 200 && res.data) {
       availableVehicles.value = (res.data as any[]).map(v => ({
@@ -413,7 +412,7 @@ const loadVehicles = async () => {
       }))
     }
   } catch (e) {
-    console.error('加载车辆列表失败', e)
+    console.error('加载车辆列表失败', e instanceof Error ? e.message : 'unknown error')
   }
 }
 

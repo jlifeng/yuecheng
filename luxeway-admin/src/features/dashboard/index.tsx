@@ -58,8 +58,8 @@ export function Dashboard() {
 
         const rankingData = await getMerchantRanking(5)
         setRanking(rankingData)
-      } catch (error) {
-        console.error('Failed to load statistics:', error)
+      } catch {
+        // The API helpers return safe fallback values; keep the dashboard mounted.
       } finally {
         setLoading(false)
       }

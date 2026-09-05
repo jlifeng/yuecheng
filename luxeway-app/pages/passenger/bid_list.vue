@@ -191,7 +191,7 @@ const loadBids = async () => {
   try {
     bids.value = await fetchBidList(currentDemand.value?.id)
   } catch (error) {
-    console.error('加载报价失败', error)
+    console.error('加载报价失败', error instanceof Error ? error.message : 'unknown error')
   }
 }
 
@@ -199,7 +199,7 @@ const loadAllDemands = async () => {
   try {
     allDemands.value = await fetchMyDemands()
   } catch (error) {
-    console.error('加载行程列表失败', error)
+    console.error('加载行程列表失败', error instanceof Error ? error.message : 'unknown error')
   }
 }
 
@@ -207,7 +207,7 @@ const loadSingleDemand = async (demandId: string) => {
   try {
     currentDemand.value = await fetchDemandById(demandId)
   } catch (error) {
-    console.error('加载行程详情失败', error)
+    console.error('加载行程详情失败', error instanceof Error ? error.message : 'unknown error')
     uni.showToast({ title: '加载失败', icon: 'none' })
   }
 }
