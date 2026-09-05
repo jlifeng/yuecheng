@@ -94,7 +94,7 @@ const loadOrders = async (isLoadMore: boolean = false) => {
     }
     hasMore.value = more
   } catch (e) {
-    console.error('加载订单失败:', e)
+    console.error('加载订单失败:', e instanceof Error ? e.message : 'unknown error')
   } finally {
     loading.value = false
   }

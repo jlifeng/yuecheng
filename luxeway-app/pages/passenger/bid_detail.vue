@@ -123,7 +123,7 @@ const loadBidDetail = async () => {
   try {
     bidDetail.value = await fetchBidDetail(bidId.value)
   } catch (error) {
-    console.error('加载报价详情失败', error)
+    console.error('加载报价详情失败', error instanceof Error ? error.message : 'unknown error')
     uni.showToast({ title: '加载失败', icon: 'none' })
   }
 }
@@ -133,7 +133,7 @@ const loadDemand = async () => {
     const demands = await fetchMyDemands()
     demand.value = demands.find(d => d.id === demandId.value)
   } catch (error) {
-    console.error('加载行程信息失败', error)
+    console.error('加载行程信息失败', error instanceof Error ? error.message : 'unknown error')
   }
 }
 

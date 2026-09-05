@@ -48,6 +48,12 @@
 cd luxeway-app
 npm install
 
+# 首次使用时复制环境变量模板，并填入你自己的项目配置
+# Windows PowerShell:
+Copy-Item .env.example .env.local
+# macOS/Linux:
+cp .env.example .env.local
+
 # 开发调试 - 使用 HBuilderX 运行到微信开发者工具
 # 或命令行：
 npm run dev:mp-weixin
@@ -56,13 +62,16 @@ npm run dev:mp-weixin
 npm run build:mp-weixin
 ```
 
-### 管理后台 (yuecheng-admin)
+### 管理后台 (luxeway-admin)
 
 ```bash
-cd yuecheng-admin
+cd luxeway-admin
 npm install
+# 复制 .env.example 为 .env.local，填入同一 Supabase 项目的配置
 npm run dev
 ```
+
+客户端环境变量只放 Supabase URL、anon key 和腾讯地图公开 Key。Supabase service role key、微信 AppSecret、腾讯地图签名 SK 等服务端密钥必须配置在 Supabase Edge Functions 或其他后端环境中，不能写入小程序或提交到 Git。
 
 ### 后端 API (yuecheng-api)
 

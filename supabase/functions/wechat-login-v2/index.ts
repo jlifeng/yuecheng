@@ -46,7 +46,10 @@ Deno.serve(async (req: Request) => {
     const wxAuthData = await wxAuthRes.json()
 
     if (wxAuthData.errcode) {
-      console.error('[wechat-login-v2] 微信登录失败:', wxAuthData)
+      console.error('[wechat-login-v2] 微信登录失败:', {
+        errcode: wxAuthData.errcode,
+        errmsg: wxAuthData.errmsg
+      })
       return new Response(JSON.stringify({ success: false, error: '微信登录失败' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json', ...corsHeaders }
@@ -54,7 +57,6 @@ Deno.serve(async (req: Request) => {
     }
 
     const openid = wxAuthData.openid
-    console.log('[wechat-login-v2] openid:', openid)
 
     // 2. 解析手机号（如果有 phone_code）
     let phone: string | null = null
@@ -75,11 +77,11 @@ Deno.serve(async (req: Request) => {
 
           if (!phoneData.errcode && phoneData.phone_info) {
             phone = phoneData.phone_info.phoneNumber
-            console.log('[wechat-login-v2] 获取到手机号:', phone)
+            console.log('[wechat-login-v2] 已获取手机号')
           }
         }
       } catch (e) {
-        console.error('[wechat-login-v2] 手机号获取异常:', e)
+        console.error('[wechat-login-v2] 手机号获取异常')
       }
     }
 
@@ -105,7 +107,7 @@ Deno.serve(async (req: Request) => {
           .update({ wechat_openid: openid })
           .eq('id', phoneProfile.id)
         existingProfile.wechat_openid = openid
-        console.log('[wechat-login-v2] 通过手机号找到用户，已补充 openid')
+        console.log('[wechat-login-v2] 已通过手机号匹配已有用户')
       }
     }
 
@@ -119,7 +121,7 @@ Deno.serve(async (req: Request) => {
 
       // 补充手机号
       if (phone && !existingProfile.phone) {
-        console.log('[wechat-login-v2] 老用户补充手机号:', phone)
+        console.log('[wechat-login-v2] 已补充已有用户的手机号')
         await serviceClient
           .from('profiles')
           .update({ phone })
@@ -151,7 +153,7 @@ Deno.serve(async (req: Request) => {
 
       if (existingAuthUser) {
         // auth 用户已存在但 profile 缺失，直接复用
-        console.log('[wechat-login-v2] auth 用户已存在，复用:', existingAuthUser.id)
+        console.log('[wechat-login-v2] auth 用户已存在，复用已有用户')
         userId = existingAuthUser.id
 
         // upsert profile
@@ -199,7 +201,7 @@ Deno.serve(async (req: Request) => {
 
           if (!linkError && linkData?.user) {
             userId = (linkData.user as any).id
-            console.log('[wechat-login-v2] 通过 generateLink 找到用户，复用:', userId)
+            console.log('[wechat-login-v2] 通过 generateLink 找到已有用户')
 
             await serviceClient
               .from('profiles')
@@ -252,7 +254,7 @@ Deno.serve(async (req: Request) => {
             .single()
 
           if (createError) {
-            console.error('[wechat-login-v2] 创建 profile 失败:', createError)
+            console.error('[wechat-login-v2] 创建 profile 失败:', createError.message)
           } else {
             userProfile = newProfile
           }
@@ -286,10 +288,8 @@ Deno.serve(async (req: Request) => {
 
     // 5. 生成 session
     // 直接用 getUserById 获取真实 email，比 listUsers 更可靠
-    const { data: authUserData, error: authUserError } = await serviceClient.auth.admin.getUserById(userId)
+    const { data: authUserData } = await serviceClient.auth.admin.getUserById(userId)
     const realEmail = authUserData?.user?.email || `${openid}@luxeway.user`
-
-    console.log('[wechat-login-v2] 真实 email:', realEmail, 'userId:', userId)
 
     const oneTimePassword = crypto.randomUUID()
     const { error: pwdError } = await serviceClient.auth.admin.updateUserById(userId, {
@@ -297,7 +297,7 @@ Deno.serve(async (req: Request) => {
     })
 
     if (pwdError) {
-      console.error('[wechat-login-v2] 重置密码失败:', pwdError)
+      console.error('[wechat-login-v2] 重置密码失败:', pwdError.message)
       return new Response(JSON.stringify({ success: false, error: '登录失败' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json', ...corsHeaders }
@@ -316,7 +316,7 @@ Deno.serve(async (req: Request) => {
       sessionData = result.data
       sessionError = result.error
       if (!sessionError && sessionData?.session) break
-      console.log('[wechat-login-v2] 登录重试:', i + 1, sessionError?.message)
+      console.log('[wechat-login-v2] 登录重试:', i + 1)
       await new Promise(r => setTimeout(r, 200))
     }
 
@@ -326,7 +326,6 @@ Deno.serve(async (req: Request) => {
     if (!sessionError && sessionData?.session) {
       accessToken = sessionData.session.access_token
       refreshToken = sessionData.session.refresh_token
-      console.log('[wechat-login-v2] session 获取成功, token长度:', accessToken.length)
     } else {
       console.error('[wechat-login-v2] session 获取失败:', sessionError?.message)
       return new Response(JSON.stringify({ success: false, error: '登录失败，请重试' }), {
@@ -367,7 +366,7 @@ Deno.serve(async (req: Request) => {
     })
 
   } catch (e) {
-    console.error('[wechat-login-v2] 异常:', e)
+    console.error('[wechat-login-v2] 异常:', e instanceof Error ? e.message : 'unknown error')
     return new Response(JSON.stringify({
       success: false,
       error: '服务器错误: ' + (e instanceof Error ? e.message : String(e))

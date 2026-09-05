@@ -167,14 +167,12 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { onShow } from '@dcloudio/uni-app'
 import CustomTabBar from '@/components/CustomTabBar.vue';
-import md5 from '@/utils/md5';
 import { providerService, fetchPendingDemands, fetchQuotedBids, fetchOngoingOrders, type WorkbenchTab } from '@/services/provider';
 import { canQuoteDemand, type MerchantReviewStatus, type ProviderRole } from '@/types/provider';
 
-// 腾讯地图配置 - 请替换为你自己的密钥
-// 申请地址: https://lbs.qq.com/
-const TENCENT_MAP_KEY = 'YOUR_TENCENT_MAP_KEY';
-const TENCENT_MAP_SK = 'YOUR_TENCENT_MAP_SK';
+// The public map key may be exposed in the client; never put the signing SK here.
+const appEnv = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
+const TENCENT_MAP_KEY = appEnv?.VITE_TENCENT_MAP_KEY || '';
 
 // 当前选择的城市（显示用）
 const currentCity = ref('武汉');
@@ -329,7 +327,7 @@ const loadDemands = async (isLoadMore: boolean = false) => {
     }
     pendingHasMore.value = hasMore
   } catch (error) {
-    console.error('加载需求列表失败', error)
+    console.error('加载需求列表失败', error instanceof Error ? error.message : 'unknown error')
     if (!isLoadMore) pendingDemands.value = []
   } finally {
     isLoadingMore.value = false
@@ -445,7 +443,7 @@ const loadQuotedBids = async (isLoadMore: boolean = false) => {
     }
     quotedHasMore.value = hasMore
   } catch (error) {
-    console.error('加载已报价列表失败', error)
+    console.error('加载已报价列表失败', error instanceof Error ? error.message : 'unknown error')
     if (!isLoadMore) quotedBids.value = []
   } finally {
     isLoadingMore.value = false
@@ -487,10 +485,10 @@ const loadOngoingOrders = async (isLoadMore: boolean = false) => {
       ongoingOrders.value = formatted
     }
     ongoingHasMore.value = hasMore
-    console.log('loadOngoingOrders - 赋值完成, ongoingOrders:', ongoingOrders.value.length, '条', JSON.stringify(ongoingOrders.value.map(o => ({id: o.id, start: o.start}))))
+    console.log('loadOngoingOrders - 赋值完成, ongoingOrders:', ongoingOrders.value.length, '条')
     console.log('loadOngoingOrders - currentTab:', currentTab.value, 'displayOrders.length:', displayOrders.value.length)
   } catch (error) {
-    console.error('加载进行中订单失败', error)
+    console.error('加载进行中订单失败', error instanceof Error ? error.message : 'unknown error')
     if (!isLoadMore) ongoingOrders.value = []
   } finally {
     isLoadingMore.value = false
@@ -585,9 +583,9 @@ const loadWorkbenchAccess = async () => {
     reviewStatus.value = workbench.session.reviewStatus;
     companyName.value = workbench.session.companyName || '';
     displayName.value = workbench.session.displayName || '';
-    console.log('loadWorkbenchAccess - reviewStatus:', reviewStatus.value, 'companyName:', companyName.value);
+    console.log('loadWorkbenchAccess - reviewStatus:', reviewStatus.value);
   } catch (error) {
-    console.error('加载工作台权限失败', error);
+    console.error('加载工作台权限失败', error instanceof Error ? error.message : 'unknown error');
   }
 };
 
@@ -595,45 +593,26 @@ const loadWorkbenchAccess = async () => {
 const loadDistrictData = async () => {
   if (allDistricts.value.length > 0) return;
 
+  if (!TENCENT_MAP_KEY) {
+    allDistricts.value = [];
+    return;
+  }
+
   loading.value = true;
   try {
-    // 行政区划API签名计算
-    const params = {
+    const params: Record<string, string | number> = {
       key: TENCENT_MAP_KEY,
       struct_type: 1
     };
-
-    // 签名计算（使用原始值，不编码）
-    const keys = Object.keys(params).sort();
-    let qs = '';
-    keys.forEach((k) => {
-      qs += `${k}=${params[k]}&`;
-    });
-    qs = qs.slice(0, -1);
     const path = '/ws/district/v1/list';
-    const strToSign = `${path}?${qs}${TENCENT_MAP_SK}`;
-    const sig = md5(strToSign);
-
-    // 发送请求时，需要对参数值进行URL编码
-    const encodedParams: any = {};
-    Object.keys(params).forEach(k => {
-      encodedParams[k] = encodeURIComponent(params[k]);
-    });
-
-    console.log('=== 行政区划API签名调试 ===');
-    console.log('排序后的参数:', qs);
-    console.log('签名字符串:', strToSign);
-    console.log('计算得到的签名:', sig);
+    const encodedParams = Object.fromEntries(
+      Object.entries(params).map(([key, value]) => [key, encodeURIComponent(String(value))])
+    );
 
     const res = await uni.request({
       url: 'https://apis.map.qq.com' + path,
-      data: {
-        ...encodedParams,
-        sig: sig
-      }
+      data: encodedParams
     });
-
-    console.log('=== 行政区划API响应 ===', res.data);
 
     if (res.data.status === 0) {
       // 确保 result 是数组
@@ -644,15 +623,15 @@ const loadDistrictData = async () => {
         // 如果是嵌套结构，取第一级
         allDistricts.value = result[0];
       } else {
-        console.error('行政区划数据格式异常:', result);
+        console.error('行政区划数据格式异常');
         allDistricts.value = [];
       }
     } else {
-      console.error('获取行政区划失败:', res.data.message);
+      console.error('获取行政区划失败');
       allDistricts.value = [];
     }
   } catch (err) {
-    console.error('行政区划请求失败:', err);
+    console.error('行政区划请求失败:', err instanceof Error ? err.message : 'unknown error');
   } finally {
     loading.value = false;
   }
@@ -742,44 +721,26 @@ const locateCity = () => {
         }
       }
 
+      if (!TENCENT_MAP_KEY) {
+        currentCity.value = '全国';
+        return;
+      }
+
       // 2. 调用腾讯地图API进行逆地址解析
-      const params = {
+      const params: Record<string, string | number> = {
         key: TENCENT_MAP_KEY,
         location: `${res.latitude},${res.longitude}`,
         get_poi: '0'
       };
-
-      // 签名计算（使用原始值，不编码）
-      const keys = Object.keys(params).sort();
-      let qs = '';
-      keys.forEach((k) => {
-        qs += `${k}=${params[k]}&`;
-      });
-      qs = qs.slice(0, -1);
       const path = '/ws/geocoder/v1';
-      const strToSign = `${path}?${qs}${TENCENT_MAP_SK}`;
-      const sig = md5(strToSign);
-
-      // 调试输出签名计算过程
-      console.log('=== 腾讯地图签名调试 ===');
-      console.log('排序后的参数:', qs);
-      console.log('签名字符串:', strToSign);
-      console.log('计算得到的签名:', sig);
-
-      // 发送请求时，需要对参数值进行URL编码
-      const encodedParams: any = {};
-      Object.keys(params).forEach(k => {
-        encodedParams[k] = encodeURIComponent(params[k]);
-      });
-      console.log('URL编码后的参数:', encodedParams);
+      const encodedParams = Object.fromEntries(
+        Object.entries(params).map(([key, value]) => [key, encodeURIComponent(String(value))])
+      );
 
       try {
         const apiRes = await uni.request({
           url: 'https://apis.map.qq.com' + path,
-          data: {
-            ...encodedParams,
-            sig: sig
-          }
+          data: encodedParams
         });
 
         if (apiRes.data && apiRes.data.status === 0) {
@@ -796,16 +757,16 @@ const locateCity = () => {
             currentCity.value = '全国';
           }
         } else {
-          console.error('逆地址解析失败:', apiRes.data.message);
+          console.error('逆地址解析失败');
           currentCity.value = '全国';
         }
       } catch (err) {
-        console.error('地图API请求失败:', err);
+        console.error('地图API请求失败:', err instanceof Error ? err.message : 'unknown error');
         currentCity.value = '全国';
       }
     },
-    fail: (err) => {
-      console.log('定位失败，使用全国:', err);
+    fail: () => {
+      console.log('定位失败，使用全国');
       // 定位失败时设置为全国
       currentCity.value = '全国';
     }

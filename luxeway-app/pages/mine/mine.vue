@@ -209,8 +209,7 @@ import { ref, computed, onMounted } from 'vue'
 import CustomTabBar from '@/components/CustomTabBar.vue'
 import { getCurrentProfile } from '@/services/wechatAuth'
 
-const SUPABASE_URL = 'https://qcsmavxqjofrhrdwgkpt.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjc21hdnhxam9mcmhyZHdna3B0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3OTU2OTUsImV4cCI6MjA5MTM3MTY5NX0.zM4mVvvZAylQIXZFrnzaSAy_MGqTvR3hrSWfSSP8xRQ'
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase'
 
 const userInfo = ref({
   nickname: '',
@@ -336,7 +335,7 @@ const reloadUserInfoFromDB = async () => {
       })
     }
   } catch (e) {
-    console.error('从数据库加载用户信息失败', e)
+    console.error('从数据库加载用户信息失败', e instanceof Error ? e.message : 'unknown error')
   }
 }
 
@@ -367,7 +366,7 @@ const loadDriverInfo = async () => {
       driverInfo.value = null
     }
   } catch (e) {
-    console.error('加载司机信息失败', e)
+    console.error('加载司机信息失败', e instanceof Error ? e.message : 'unknown error')
   }
 
   // 2. 查询待确认的车队邀请：本人手机号匹配、user_id 为空、status=pending
@@ -392,7 +391,7 @@ const loadDriverInfo = async () => {
         }))
       }
     } catch (e) {
-      console.error('加载车队邀请失败', e)
+      console.error('加载车队邀请失败', e instanceof Error ? e.message : 'unknown error')
     }
   } else {
     pendingInvitations.value = []
@@ -461,13 +460,13 @@ const saveProfile = async () => {
       })
       console.log('saveProfile - 保存成功')
     } else {
-      console.error('saveProfile - 保存失败:', res.statusCode, res.data)
+      console.error('saveProfile - 保存失败:', res.statusCode)
       uni.showToast({ title: '保存失败，请重试', icon: 'none' })
       // 回滚本地显示：重新从数据库读取
       await reloadUserInfoFromDB()
     }
   } catch (e) {
-    console.error('保存用户信息失败', e)
+    console.error('保存用户信息失败', e instanceof Error ? e.message : 'unknown error')
     uni.showToast({ title: '保存失败，请重试', icon: 'none' })
   }
 }
@@ -514,7 +513,7 @@ const onSubmitPhone = async () => {
     }
   } catch (e) {
     uni.hideLoading()
-    console.error('保存手机号失败', e)
+    console.error('保存手机号失败', e instanceof Error ? e.message : 'unknown error')
     uni.showToast({ title: '保存失败', icon: 'none' })
   }
 }
@@ -559,7 +558,7 @@ const onConfirmInvite = async (inv: any) => {
       uni.showToast({ title: result?.error || '加入失败', icon: 'none' })
     }
   } catch (err) {
-    console.error('确认加入失败', err)
+    console.error('确认加入失败', err instanceof Error ? err.message : 'unknown error')
     uni.showToast({ title: '加入失败', icon: 'none' })
   } finally {
     confirmingInviteId.value = null
@@ -605,7 +604,7 @@ const rejectInvitation = async (inv: any) => {
         }
       } catch (e) {
         uni.hideLoading()
-        console.error('拒绝邀请失败', e)
+        console.error('拒绝邀请失败', e instanceof Error ? e.message : 'unknown error')
         uni.showToast({ title: '拒绝失败', icon: 'none' })
       }
     }
@@ -654,7 +653,7 @@ const handleUnbind = async () => {
 
           uni.showToast({ title: '已解绑', icon: 'success' })
         } catch (e) {
-          console.error('解绑失败', e)
+          console.error('解绑失败', e instanceof Error ? e.message : 'unknown error')
           uni.showToast({ title: '解绑失败', icon: 'none' })
         }
       }

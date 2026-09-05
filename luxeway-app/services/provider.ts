@@ -7,9 +7,7 @@ import {
   FULFILLMENT_STATUS,
   getDemandStatusForFulfillment
 } from '@/utils/fulfillmentStateMachine'
-
-const SUPABASE_URL = 'https://qcsmavxqjofrhrdwgkpt.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjc21hdnhxam9mcmhyZHdna3B0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3OTU2OTUsImV4cCI6MjA5MTM3MTY5NX0.zM4mVvvZAylQIXZFrnzaSAy_MGqTvR3hrSWfSSP8xRQ'
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase'
 
 /** Merchant fleet driver row (subset used by assign flow). */
 export interface MerchantDriver {
@@ -79,7 +77,7 @@ export const fetchWorkbench = async (): Promise<WorkbenchData> => {
   const userProfile = uni.getStorageSync('userProfile')
 
   console.log('fetchWorkbench - accessToken:', accessToken ? '有' : '无')
-  console.log('fetchWorkbench - userProfile:', JSON.stringify(userProfile))
+  console.log('fetchWorkbench - session state:', { hasUserProfile: !!userProfile })
 
   if (!accessToken || !userProfile?.id) {
     // 返回默认值（未登录状态）
@@ -96,7 +94,7 @@ export const fetchWorkbench = async (): Promise<WorkbenchData> => {
 
   // 如果用户有 merchant_id，从 merchants 表获取审核状态
   if (userProfile.merchant_id) {
-    console.log('fetchWorkbench - 有 merchant_id:', userProfile.merchant_id, '，查询商家信息...')
+    console.log('fetchWorkbench - 已关联商家，查询商家信息...')
     try {
       const res = await uni.request({
         url: `${SUPABASE_URL}/rest/v1/merchants?id=eq.${userProfile.merchant_id}&select=*`,
@@ -107,7 +105,7 @@ export const fetchWorkbench = async (): Promise<WorkbenchData> => {
         }
       })
 
-      console.log('fetchWorkbench - 商家查询结果:', res.statusCode, res.data)
+      console.log('fetchWorkbench - 商家查询结果:', res.statusCode)
 
       if (res.statusCode === 200 && res.data && (res.data as any[]).length > 0) {
         const merchant = (res.data as any[])[0]
@@ -122,7 +120,7 @@ export const fetchWorkbench = async (): Promise<WorkbenchData> => {
         }
       }
     } catch (e) {
-      console.error('获取商家信息失败', e)
+      console.error('获取商家信息失败', e instanceof Error ? e.message : 'unknown error')
     }
   } else {
     console.log('fetchWorkbench - 无 merchant_id，尝试从 roles 获取...')
@@ -146,7 +144,7 @@ export const fetchWorkbench = async (): Promise<WorkbenchData> => {
           }
         })
 
-        console.log('fetchWorkbench - profiles 查询结果:', res.statusCode, res.data)
+        console.log('fetchWorkbench - profiles 查询结果:', res.statusCode)
 
         if (res.statusCode === 200 && res.data && (res.data as any[]).length > 0) {
           const profile = (res.data as any[])[0]
@@ -167,7 +165,7 @@ export const fetchWorkbench = async (): Promise<WorkbenchData> => {
               }
             })
 
-            console.log('fetchWorkbench - 商家信息:', merchantRes.statusCode, merchantRes.data)
+            console.log('fetchWorkbench - 商家信息查询结果:', merchantRes.statusCode)
 
             if (merchantRes.statusCode === 200 && merchantRes.data && (merchantRes.data as any[]).length > 0) {
               const merchant = (merchantRes.data as any[])[0]
@@ -183,7 +181,7 @@ export const fetchWorkbench = async (): Promise<WorkbenchData> => {
           }
         }
       } catch (e) {
-        console.error('查询用户 merchant_id 失败', e)
+        console.error('查询用户 merchant_id 失败', e instanceof Error ? e.message : 'unknown error')
       }
     }
   }
@@ -200,7 +198,7 @@ export const fetchWorkbench = async (): Promise<WorkbenchData> => {
       }
     })
 
-    console.log('fetchWorkbench - 兜底商家查询结果:', res.statusCode, res.data)
+    console.log('fetchWorkbench - 兜底商家查询结果:', res.statusCode)
 
     if (res.statusCode === 200 && res.data && (res.data as any[]).length > 0) {
       const merchant = (res.data as any[])[0]
@@ -219,7 +217,7 @@ export const fetchWorkbench = async (): Promise<WorkbenchData> => {
       }
     }
   } catch (e) {
-    console.error('兜底查询商家失败', e)
+    console.error('兜底查询商家失败', e instanceof Error ? e.message : 'unknown error')
   }
 
   // 返回默认值
@@ -243,7 +241,7 @@ export const fetchPendingDemands = async (
   const userProfile = uni.getStorageSync('userProfile')
 
   console.log('fetchPendingDemands - accessToken:', accessToken ? '有' : '无')
-  console.log('fetchPendingDemands - userProfile:', userProfile)
+  console.log('fetchPendingDemands - session state:', { hasUserProfile: !!userProfile })
 
   // 只要已登录就能查看待报价需求（报价需要商家审核通过）
   if (!accessToken) {
@@ -269,10 +267,10 @@ export const fetchPendingDemands = async (
     })
     if (pendingBidsRes.statusCode === 200 && pendingBidsRes.data) {
       excludedDemandIds = (pendingBidsRes.data as any[]).map((b: any) => b.demand_id)
-      console.log('fetchPendingDemands - 已有PENDING报价的 demand_id:', excludedDemandIds)
+      console.log('fetchPendingDemands - 已排除已有报价的需求:', excludedDemandIds.length)
     }
   } catch (e) {
-    console.error('查询已有PENDING报价需求失败', e)
+    console.error('查询已有PENDING报价需求失败', e instanceof Error ? e.message : 'unknown error')
   }
 
   // 查询待报价需求
@@ -286,7 +284,7 @@ export const fetchPendingDemands = async (
     }
   })
 
-  console.log('fetchPendingDemands - 响应:', res.statusCode, res.data)
+  console.log('fetchPendingDemands - 响应:', res.statusCode)
 
   // JWT 过期处理
   if (isJwtExpired(res.statusCode, res.data)) {
@@ -316,7 +314,7 @@ export const fetchQuotedBids = async (
   const accessToken = uni.getStorageSync('accessToken')
   const userProfile = uni.getStorageSync('userProfile')
 
-  console.log('fetchQuotedBids - userProfile:', userProfile)
+  console.log('fetchQuotedBids - session state:', { hasUserProfile: !!userProfile })
 
   // 需要用户已登录且有 id
   if (!accessToken || !userProfile?.id) {
@@ -337,7 +335,7 @@ export const fetchQuotedBids = async (
     }
   })
 
-  console.log('fetchQuotedBids - 响应:', res.statusCode, res.data)
+  console.log('fetchQuotedBids - 响应:', res.statusCode)
 
   // JWT 过期处理
   if (isJwtExpired(res.statusCode, res.data)) {
@@ -375,7 +373,7 @@ export const fetchOngoingOrders = async (
   const accessToken = uni.getStorageSync('accessToken')
   const userProfile = uni.getStorageSync('userProfile')
 
-  console.log('fetchOngoingOrders - userProfile:', userProfile)
+  console.log('fetchOngoingOrders - session state:', { hasUserProfile: !!userProfile })
 
   if (!accessToken || !userProfile?.id) {
     console.log('fetchOngoingOrders - 未登录或无用户ID，返回空数组')
@@ -395,12 +393,12 @@ export const fetchOngoingOrders = async (
         'Authorization': `Bearer ${accessToken}`
       }
     })
-    console.log('fetchOngoingOrders - demands路径响应:', demandRes.statusCode, demandRes.data)
+    console.log('fetchOngoingOrders - demands路径响应:', demandRes.statusCode)
     if (demandRes.statusCode === 200 && demandRes.data) {
       demandResults = demandRes.data as any[]
     }
   } catch (e) {
-    console.error('fetchOngoingOrders - demands路径失败:', e)
+    console.error('fetchOngoingOrders - demands路径失败:', e instanceof Error ? e.message : 'unknown error')
   }
 
   // 路径2: 从 bids 表查 provider_id = 当前用户 & status = ACCEPTED
@@ -416,14 +414,14 @@ export const fetchOngoingOrders = async (
         'Authorization': `Bearer ${accessToken}`
       }
     })
-    console.log('fetchOngoingOrders - bids路径响应:', bidRes.statusCode, bidRes.data)
+    console.log('fetchOngoingOrders - bids路径响应:', bidRes.statusCode)
     if (bidRes.statusCode === 200 && bidRes.data) {
       const bids = bidRes.data as any[]
       bidDemandIds = bids.map((b: any) => b.demand_id)
       bids.forEach((b: any) => { bidPriceMap[b.demand_id] = b.price || 0 })
     }
   } catch (e) {
-    console.error('fetchOngoingOrders - bids路径失败:', e)
+    console.error('fetchOngoingOrders - bids路径失败:', e instanceof Error ? e.message : 'unknown error')
   }
 
   // 用 demand_id 列表查 demands（乘客策略 passenger_id=auth.uid() 不会匹配，
@@ -446,12 +444,12 @@ export const fetchOngoingOrders = async (
             'Authorization': `Bearer ${accessToken}`
           }
         })
-        console.log('fetchOngoingOrders - bids补充demands响应:', demandRes2.statusCode, demandRes2.data)
+        console.log('fetchOngoingOrders - bids补充demands响应:', demandRes2.statusCode)
         if (demandRes2.statusCode === 200 && demandRes2.data) {
           bidDemandResults = demandRes2.data as any[]
         }
       } catch (e) {
-        console.error('fetchOngoingOrders - bids补充demands失败:', e)
+        console.error('fetchOngoingOrders - bids补充demands失败:', e instanceof Error ? e.message : 'unknown error')
       }
     }
   }
@@ -522,7 +520,7 @@ export const fetchMerchantOrders = async (
   const accessToken = uni.getStorageSync('accessToken')
   const userProfile = uni.getStorageSync('userProfile')
 
-  console.log('fetchMerchantOrders - userProfile:', userProfile)
+  console.log('fetchMerchantOrders - session state:', { hasUserProfile: !!userProfile })
 
   if (!accessToken || !userProfile?.id) {
     console.log('fetchMerchantOrders - 未登录或无用户ID')
@@ -531,7 +529,7 @@ export const fetchMerchantOrders = async (
 
   const from = (page - 1) * pageSize
 
-  console.log('fetchMerchantOrders - 查询商家订单:', userProfile.id, 'page:', page)
+  console.log('fetchMerchantOrders - 查询商家订单, page:', page)
 
   // 查询商家所有已接受的报价，关联需求信息
   const res = await uni.request({
@@ -543,7 +541,7 @@ export const fetchMerchantOrders = async (
     }
   })
 
-  console.log('fetchMerchantOrders - 响应:', res.statusCode, res.data)
+  console.log('fetchMerchantOrders - 响应:', res.statusCode)
 
   if (res.statusCode === 200 && res.data) {
     const data = (res.data as any[]).map(bid => ({
@@ -596,7 +594,7 @@ export const submitBid = async (payload: ProviderBidPayload): Promise<{ bidId: s
     // 如果是我们自己抛的"已有报价"错误，直接抛出
     if (e.message === '该行程已有司机报价，请稍后再试') throw e
     // 网络等异常不阻塞报价，继续执行
-    console.error('独占报价检查失败，继续报价:', e)
+    console.error('独占报价检查失败，继续报价:', e instanceof Error ? e.message : 'unknown error')
   }
 
   const bidData = {
@@ -640,7 +638,7 @@ export const merchantCancelOrder = async (demandId: string, reason: string): Pro
     throw new Error('请先登录')
   }
 
-  console.log('merchantCancelOrder - 取消订单:', demandId, '原因:', reason)
+  console.log('merchantCancelOrder - 开始取消订单')
 
   // 先验证订单状态和归属
   const bidRes = await uni.request({
@@ -740,7 +738,7 @@ export const merchantCancelOrder = async (demandId: string, reason: string): Pro
   })
 
   if (eventRes.statusCode !== 201 && eventRes.statusCode !== 200) {
-    console.error('merchantCancelOrder event insert failed:', eventRes.statusCode, eventRes.data)
+    console.error('merchantCancelOrder event insert failed:', eventRes.statusCode)
   }
 }
 
@@ -785,7 +783,7 @@ export const fetchMerchantDrivers = async (
   }
 
   if (res.statusCode !== 200 || !res.data) {
-    console.error('fetchMerchantDrivers failed:', res.statusCode, res.data)
+    console.error('fetchMerchantDrivers failed:', res.statusCode)
     return []
   }
 
@@ -836,7 +834,7 @@ export const fetchMerchantVehicles = async (
   }
 
   if (res.statusCode !== 200 || !res.data) {
-    console.error('fetchMerchantVehicles failed:', res.statusCode, res.data)
+    console.error('fetchMerchantVehicles failed:', res.statusCode)
     return []
   }
 
@@ -1004,7 +1002,7 @@ export const assignDriverToDemand = async (
   }
 
   if (patchRes.statusCode !== 204 && patchRes.statusCode !== 200) {
-    console.error('assignDriverToDemand PATCH failed:', patchRes.statusCode, patchRes.data)
+    console.error('assignDriverToDemand PATCH failed:', patchRes.statusCode)
     throw new Error('指派司机失败')
   }
 
@@ -1029,7 +1027,7 @@ export const assignDriverToDemand = async (
 
   if (eventRes.statusCode !== 201 && eventRes.statusCode !== 200) {
     // Assignment already succeeded; log but do not fail the whole flow hard
-    console.error('assignDriverToDemand event insert failed:', eventRes.statusCode, eventRes.data)
+    console.error('assignDriverToDemand event insert failed:', eventRes.statusCode)
   }
 }
 
@@ -1161,7 +1159,7 @@ export const advanceFulfillment = async (
       })
       if (assignRes.statusCode === 204 || assignRes.statusCode === 200) {
         demand.assigned_driver_id = driverRow.id
-        console.log('advanceFulfillment - 自动关联司机:', driverRow.id)
+        console.log('advanceFulfillment - 已自动关联司机')
       } else {
         console.error('advanceFulfillment - 自动关联司机失败:', assignRes.statusCode)
         throw new Error('关联司机失败，请重试')
@@ -1220,7 +1218,7 @@ export const advanceFulfillment = async (
   }
 
   if (patchRes.statusCode !== 204 && patchRes.statusCode !== 200) {
-    console.error('advanceFulfillment PATCH failed:', patchRes.statusCode, patchRes.data)
+    console.error('advanceFulfillment PATCH failed:', patchRes.statusCode)
     throw new Error('推进履约状态失败')
   }
 
@@ -1243,7 +1241,7 @@ export const advanceFulfillment = async (
   })
 
   if (eventRes.statusCode !== 201 && eventRes.statusCode !== 200) {
-    console.error('advanceFulfillment event insert failed:', eventRes.statusCode, eventRes.data)
+    console.error('advanceFulfillment event insert failed:', eventRes.statusCode)
   }
 }
 
@@ -1402,7 +1400,7 @@ export const submitOrderFees = async (
   }
 
   if (feeRes.statusCode !== 201 && feeRes.statusCode !== 200) {
-    console.error('submitOrderFees UPSERT failed:', feeRes.statusCode, feeRes.data)
+    console.error('submitOrderFees UPSERT failed:', feeRes.statusCode)
     throw new Error('费用提交失败')
   }
 
@@ -1431,7 +1429,7 @@ export const submitOrderFees = async (
   }
 
   if (patchRes.statusCode !== 204 && patchRes.statusCode !== 200) {
-    console.error('submitOrderFees demand PATCH failed:', patchRes.statusCode, patchRes.data)
+    console.error('submitOrderFees demand PATCH failed:', patchRes.statusCode)
     throw new Error('更新订单状态失败')
   }
 
@@ -1459,7 +1457,7 @@ export const submitOrderFees = async (
   })
 
   if (eventRes.statusCode !== 201 && eventRes.statusCode !== 200) {
-    console.error('submitOrderFees event insert failed:', eventRes.statusCode, eventRes.data)
+    console.error('submitOrderFees event insert failed:', eventRes.statusCode)
   }
 }
 

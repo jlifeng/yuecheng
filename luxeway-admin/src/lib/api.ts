@@ -2,16 +2,13 @@
  * LuxeWay 管理后台 API 封装
  */
 
-import { supabase, type MerchantReviewStatus, type UserRole, type DemandStatus } from './supabase'
+import { supabase, SUPABASE_URL, type MerchantReviewStatus, type UserRole, type DemandStatus } from './supabase'
 import {
   setAccessToken,
   setRefreshToken,
   clearTokens,
-  fetchWithAuthRefresh,
-  getAccessToken
+  fetchWithAuthRefresh
 } from './token-refresh'
-
-const SUPABASE_URL = 'https://qcsmavxqjofrhrdwgkpt.supabase.co'
 
 /**
  * 使用 REST API 查询 Supabase（带认证和自动刷新）
@@ -219,8 +216,7 @@ export async function getMerchants(params: {
     })
 
     return { data: result.data || [], count: result.count, page, pageSize }
-  } catch (error) {
-    console.error('获取商家列表失败:', error)
+  } catch {
     return { data: [], count: 0, page, pageSize }
   }
 }
@@ -281,8 +277,6 @@ export async function updateMerchantStatus(merchantId: string, data: {
  * 商家审核通过 - 更新商家状态并给用户分配车队负责人角色
  */
 export async function approveMerchantWithRole(merchantId: string) {
-  console.log('=== 开始审核商家流程 ===')
-  console.log('merchantId:', merchantId)
 
   // 1. 获取商家信息（包含 owner_user_id）
   const merchantResult = await supabaseQuery('merchants', {
@@ -290,7 +284,6 @@ export async function approveMerchantWithRole(merchantId: string) {
     filter: `id=eq.${merchantId}`
   })
 
-  console.log('商家查询结果:', merchantResult.data)
 
   const merchant = merchantResult.data?.[0]
   if (!merchant || !merchant.owner_user_id) {
@@ -298,7 +291,6 @@ export async function approveMerchantWithRole(merchantId: string) {
   }
 
   // 2. 更新商家审核状态
-  console.log('更新商家审核状态...')
   await supabaseMutation('merchants', 'PATCH', {
     filter: `id=eq.${merchantId}`,
     body: {
@@ -309,8 +301,7 @@ export async function approveMerchantWithRole(merchantId: string) {
   })
 
   // 3. 更新用户的 merchant_id 和 display_role
-  console.log('更新用户 merchant_id:', merchant.owner_user_id, '->', merchantId)
-  const updateResult = await supabaseMutation('profiles', 'PATCH', {
+  await supabaseMutation('profiles', 'PATCH', {
     filter: `id=eq.${merchant.owner_user_id}`,
     body: {
       merchant_id: merchantId,
@@ -319,9 +310,6 @@ export async function approveMerchantWithRole(merchantId: string) {
     },
     returnRepresentation: true
   })
-
-  console.log('用户更新结果:', updateResult)
-  console.log(`商家 ${merchant.company_name} 审核通过，用户 ${merchant.owner_user_id} 已分配车队负责人角色`)
 
   return merchant
 }
@@ -357,8 +345,7 @@ export async function getUsers(params: {
     })
 
     return { data: result.data || [], count: result.count, page, pageSize }
-  } catch (error) {
-    console.error('获取用户列表失败:', error)
+  } catch {
     return { data: [], count: 0, page, pageSize }
   }
 }
@@ -448,8 +435,7 @@ export async function getDemands(params: {
     })
 
     return { data: result.data || [], count: result.count, page, pageSize }
-  } catch (error) {
-    console.error('获取订单列表失败:', error)
+  } catch {
     return { data: [], count: 0, page, pageSize }
   }
 }
@@ -633,8 +619,7 @@ export async function getStatistics() {
       todayNewUsers: todayUsersResult.count || 0,
       todayNewOrders: todayOrdersResult.count || 0
     }
-  } catch (error) {
-    console.error('获取统计数据失败:', error)
+  } catch {
     // 返回默认值，避免页面崩溃
     return {
       merchantCount: 0,
@@ -742,8 +727,7 @@ export async function getOrderCompletionStats() {
       total,
       completionRate: total > 0 ? Math.round((completed / total) * 100) : 0
     }
-  } catch (error) {
-    console.error('获取订单完成率失败:', error)
+  } catch {
     return {
       COMPLETED: 0,
       CANCELLED: 0,

@@ -5,9 +5,9 @@
 
 import { createClient } from '@supabase/supabase-js'
 
-// Supabase 项目配置
-const SUPABASE_URL = 'https://qcsmavxqjofrhrdwgkpt.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjc21hdnhxam9mcmhyZHdna3B0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3OTU2OTUsImV4cCI6MjA5MTM3MTY5NX0.zM4mVvvZAylQIXZFrnzaSAy_MGqTvR3hrSWfSSP8xRQ'
+// Supabase 项目配置通过本地 .env 文件注入，不要把 service_role key 放入客户端。
+export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
+export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 
 // 创建 Supabase 客户端
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {

@@ -4,9 +4,7 @@
  */
 
 import { getCookie, setCookie, removeCookie } from '@/lib/cookies'
-
-const SUPABASE_URL = 'https://qcsmavxqjofrhrdwgkpt.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjc21hdnhxam9mcmhyZHdna3B0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3OTU2OTUsImV4cCI6MjA5MTM3MTY5NX0.zM4mVvvZAylQIXZFrnzaSAy_MGqTvR3hrSWfSSP8xRQ'
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/supabase'
 
 const ACCESS_TOKEN_KEY = 'luxeway_admin_token'
 const REFRESH_TOKEN_KEY = 'luxeway_refresh_token'
@@ -79,7 +77,6 @@ export async function refreshAccessToken(): Promise<boolean> {
 
   const refreshToken = getRefreshToken()
   if (!refreshToken) {
-    console.error('没有 refresh token，无法刷新')
     return false
   }
 
@@ -113,7 +110,6 @@ async function performRefresh(refreshToken: string): Promise<boolean> {
 
     if (!response.ok) {
       const error = await response.json()
-      console.error('Token 刷新失败:', error)
 
       // 如果 refresh token 也过期了，清除所有 token
       if (response.status === 401 || error.error?.message?.includes('refresh token')) {
@@ -132,10 +128,8 @@ async function performRefresh(refreshToken: string): Promise<boolean> {
       setRefreshToken(data.refresh_token)
     }
 
-    console.log('Token 刷新成功')
     return true
-  } catch (error) {
-    console.error('Token 刷新请求异常:', error)
+  } catch {
     return false
   }
 }

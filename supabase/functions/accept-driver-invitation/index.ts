@@ -125,7 +125,7 @@ Deno.serve(async (req: Request) => {
     })
 
   } catch (e) {
-    console.error('accept-driver-invitation error:', e)
+    console.error('accept-driver-invitation error:', e instanceof Error ? e.message : 'unknown error')
     return new Response(JSON.stringify({ success: false, error: '服务器错误' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders }

@@ -62,7 +62,10 @@ Deno.serve(async (req: Request) => {
     const tokenData = await tokenRes.json()
 
     if (!tokenData.access_token) {
-      console.error('获取微信 access_token 失败', tokenData)
+      console.error('获取微信 access_token 失败', {
+        errcode: tokenData.errcode,
+        errmsg: tokenData.errmsg
+      })
       return new Response(JSON.stringify({ success: false, error: '微信接口错误' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json', ...corsHeaders }
@@ -80,7 +83,10 @@ Deno.serve(async (req: Request) => {
     const phoneData = await phoneRes.json()
 
     if (phoneData.errcode !== 0 || !phoneData.phone_info?.purePhoneNumber) {
-      console.error('解密手机号失败', phoneData)
+      console.error('解密手机号失败', {
+        errcode: phoneData.errcode,
+        errmsg: phoneData.errmsg
+      })
       return new Response(JSON.stringify({ success: false, error: '获取手机号失败' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json', ...corsHeaders }
@@ -133,7 +139,7 @@ Deno.serve(async (req: Request) => {
     })
 
   } catch (e) {
-    console.error('bind-phone error:', e)
+    console.error('bind-phone error:', e instanceof Error ? e.message : 'unknown error')
     return new Response(JSON.stringify({ success: false, error: '服务器错误' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders }

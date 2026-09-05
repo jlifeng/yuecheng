@@ -89,8 +89,8 @@ export function Merchants() {
       setMerchants(result.data || [])
       setTotal(result.count || 0)
       setCurrentPage(page)
-    } catch (error) {
-      console.error('Failed to load merchants:', error)
+    } catch {
+      // Keep the existing data visible when a refresh fails.
     } finally {
       setLoading(false)
       loadingRef.current = false
@@ -127,8 +127,8 @@ export function Merchants() {
       await approveMerchantWithRole(merchantId)
       loadData(currentPage)
       refreshMerchantCount()
-    } catch (error) {
-      console.error('Failed to approve merchant:', error)
+    } catch {
+      // The API helper reports the failure through its return path.
     }
   }
 
@@ -137,8 +137,8 @@ export function Merchants() {
       await updateMerchantStatus(merchantId, { review_status: 'rejected', review_note: '审核未通过' })
       loadData(currentPage)
       refreshMerchantCount()
-    } catch (error) {
-      console.error('Failed to reject merchant:', error)
+    } catch {
+      // The API helper reports the failure through its return path.
     }
   }
 
@@ -157,8 +157,8 @@ export function Merchants() {
       setDisableDialogOpen(false)
       setMerchantToDisable(null)
       loadData(currentPage)
-    } catch (error) {
-      console.error('Failed to toggle merchant status:', error)
+    } catch {
+      // The API helper reports the failure through its return path.
     }
   }
 

@@ -5,9 +5,10 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
-// Supabase 项目配置
-const SUPABASE_URL = 'https://qcsmavxqjofrhrdwgkpt.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjc21hdnhxam9mcmhyZHdna3B0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3OTU2OTUsImV4cCI6MjA5MTM3MTY5NX0.zM4mVvvZAylQIXZFrnzaSAy_MGqTvR3hrSWfSSP8xRQ'
+// Supabase 项目配置通过本地 .env 文件注入，不要把 service_role key 放入客户端。
+const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env ?? {}
+export const SUPABASE_URL = env.VITE_SUPABASE_URL ?? ''
+export const SUPABASE_ANON_KEY = env.VITE_SUPABASE_ANON_KEY ?? ''
 
 // 自定义存储适配器（适配小程序环境）
 const customStorageAdapter = {

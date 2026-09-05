@@ -74,8 +74,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 
-const SUPABASE_URL = 'https://qcsmavxqjofrhrdwgkpt.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjc21hdnhxam9mcmhyZHdna3B0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3OTU2OTUsImV4cCI6MjA5MTM3MTY5NX0.zM4mVvvZAylQIXZFrnzaSAy_MGqTvR3hrSWfSSP8xRQ'
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase'
 
 const userProfile = ref<any>(null)
 const userRoles = ref<any[]>([])
@@ -174,7 +173,7 @@ const loadStats = async () => {
     })
     pendingMerchants.value = parseInt(pendingRes.header?.['content-range']?.split('/')?.[1] || '0')
   } catch (e) {
-    console.error('加载统计失败', e)
+    console.error('加载统计失败', e instanceof Error ? e.message : 'unknown error')
   }
 }
 
@@ -195,7 +194,7 @@ const loadPendingMerchants = async () => {
       pendingMerchantList.value = res.data as any[]
     }
   } catch (e) {
-    console.error('加载待审核商家失败', e)
+    console.error('加载待审核商家失败', e instanceof Error ? e.message : 'unknown error')
   }
 }
 

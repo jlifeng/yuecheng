@@ -154,8 +154,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 
-const SUPABASE_URL = 'https://qcsmavxqjofrhrdwgkpt.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjc21hdnhxam9mcmhyZHdna3B0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3OTU2OTUsImV4cCI6MjA5MTM3MTY5NX0.zM4mVvvZAylQIXZFrnzaSAy_MGqTvR3hrSWfSSP8xRQ'
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase'
 
 const merchantInfo = ref<any>(null)
 const vehicles = ref<any[]>([])
@@ -231,7 +230,7 @@ const loadMerchantInfo = async () => {
       merchantInfo.value = (res.data as any[])[0]
     }
   } catch (e) {
-    console.error('加载商家信息失败', e)
+    console.error('加载商家信息失败', e instanceof Error ? e.message : 'unknown error')
   }
 }
 
@@ -255,7 +254,7 @@ const loadVehicles = async () => {
       vehicles.value = res.data as any[]
     }
   } catch (e) {
-    console.error('加载车辆列表失败', e)
+    console.error('加载车辆列表失败', e instanceof Error ? e.message : 'unknown error')
   }
 }
 
@@ -279,7 +278,7 @@ const loadDrivers = async () => {
       drivers.value = res.data as any[]
     }
   } catch (e) {
-    console.error('加载司机列表失败', e)
+    console.error('加载司机列表失败', e instanceof Error ? e.message : 'unknown error')
   }
 }
 
@@ -389,7 +388,7 @@ const saveVehicle = async () => {
     uni.showToast({ title: '保存成功', icon: 'success' })
   } catch (e) {
     uni.hideLoading()
-    console.error('保存车辆失败', e)
+    console.error('保存车辆失败', e instanceof Error ? e.message : 'unknown error')
     uni.showToast({ title: '保存失败', icon: 'none' })
   }
 }
@@ -423,7 +422,7 @@ const removeVehicle = async () => {
           uni.showToast({ title: '已删除', icon: 'success' })
         } catch (e) {
           uni.hideLoading()
-          console.error('删除车辆失败', e)
+          console.error('删除车辆失败', e instanceof Error ? e.message : 'unknown error')
           uni.showToast({ title: '删除失败', icon: 'none' })
         }
       }
@@ -508,7 +507,7 @@ const saveDriver = async () => {
     uni.showToast({ title: '保存成功', icon: 'success' })
   } catch (e) {
     uni.hideLoading()
-    console.error('保存司机失败', e)
+    console.error('保存司机失败', e instanceof Error ? e.message : 'unknown error')
     uni.showToast({ title: '保存失败', icon: 'none' })
   }
 }
@@ -542,7 +541,7 @@ const removeDriver = async () => {
           uni.showToast({ title: '已移除', icon: 'success' })
         } catch (e) {
           uni.hideLoading()
-          console.error('移除司机失败', e)
+          console.error('移除司机失败', e instanceof Error ? e.message : 'unknown error')
           uni.showToast({ title: '移除失败', icon: 'none' })
         }
       }

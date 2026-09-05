@@ -1,6 +1,6 @@
 {
     "name": "LuxeWay 悦途",
-    "appid": "__UNI__0334A60",
+    "appid": "__UNI__REPLACE_ME",
     "description": "",
     "versionName": "1.0.0",
     "versionCode": "100",
@@ -50,7 +50,7 @@
     "quickapp": {},
     /* 小程序特有相关 */
     "mp-weixin": {
-        "appid": "wxe2015705089144c8",
+            "appid": "wxREPLACE_ME",
         "setting": {
             "urlCheck": false,
             "minified": true,

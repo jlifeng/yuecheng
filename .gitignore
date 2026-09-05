@@ -22,7 +22,16 @@ npm-debug.log*
 # Environment files
 .env
 .env.local
+.env.*
+!.env.example
 .env.*.local
+
+# Local AI/developer state
+.claude/settings.local.json
+.trellis/workspace/
+对话过程记录.md
+agent resume.txt
+assets/
 
 # Test coverage
 coverage/

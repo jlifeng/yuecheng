@@ -159,8 +159,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 
-const SUPABASE_URL = 'https://qcsmavxqjofrhrdwgkpt.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjc21hdnhxam9mcmhyZHdna3B0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3OTU2OTUsImV4cCI6MjA5MTM3MTY5NX0.zM4mVvvZAylQIXZFrnzaSAy_MGqTvR3hrSWfSSP8xRQ'
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase'
 
 const form = ref({
   type: 'individual' as 'individual' | 'company',
@@ -208,7 +207,7 @@ const uploadImageToStorage = async (filePath: string, folder: string): Promise<s
   const ext = filePath.split('.').pop() || 'jpg'
   const fileName = `${folder}/${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${ext}`
 
-  console.log('开始上传:', fileName, '路径:', filePath)
+  console.log('开始上传文件')
 
   try {
     // 使用 uni.uploadFile 直接上传文件
@@ -223,7 +222,7 @@ const uploadImageToStorage = async (filePath: string, folder: string): Promise<s
       }
     })
 
-    console.log('上传响应:', uploadRes.statusCode, uploadRes.data)
+    console.log('上传响应:', uploadRes.statusCode)
 
     // uni.uploadFile 返回的 data 可能是字符串，需要解析
     let responseData = uploadRes.data
@@ -231,7 +230,7 @@ const uploadImageToStorage = async (filePath: string, folder: string): Promise<s
       try {
         responseData = JSON.parse(responseData)
       } catch (e) {
-        console.warn('解析响应失败，但不影响上传:', e)
+        console.warn('解析上传响应失败，但不影响上传')
       }
     }
 
@@ -255,7 +254,7 @@ const uploadImageToStorage = async (filePath: string, folder: string): Promise<s
     const errorMsg = (responseData as any)?.message || (responseData as any)?.error || '上传失败'
     throw new Error(errorMsg)
   } catch (e: any) {
-    console.error('上传异常:', e)
+    console.error('上传异常:', e instanceof Error ? e.message : 'unknown error')
     throw e
   }
 }
@@ -275,12 +274,12 @@ const uploadDriverLicense = () => {
       } catch (e: any) {
         uni.hideLoading()
         const errMsg = e?.message || '上传失败，请重试'
-        console.error('上传驾驶证失败:', e)
+        console.error('上传驾驶证失败:', e instanceof Error ? e.message : 'unknown error')
         uni.showToast({ title: errMsg, icon: 'none', duration: 2000 })
       }
     },
     fail: (err) => {
-      console.error('选择图片失败:', err)
+      console.error('选择图片失败')
       uni.showToast({ title: '选择图片失败', icon: 'none' })
     }
   })
@@ -301,12 +300,12 @@ const uploadCarImage = (field: 'car_front_url' | 'car_side_url' | 'car_interior_
       } catch (e: any) {
         uni.hideLoading()
         const errMsg = e?.message || '上传失败，请重试'
-        console.error('上传车辆图片失败:', e)
+        console.error('上传车辆图片失败:', e instanceof Error ? e.message : 'unknown error')
         uni.showToast({ title: errMsg, icon: 'none', duration: 2000 })
       }
     },
     fail: (err) => {
-      console.error('选择图片失败:', err)
+      console.error('选择图片失败')
       uni.showToast({ title: '选择图片失败', icon: 'none' })
     }
   })
@@ -327,12 +326,12 @@ const uploadLicense = () => {
       } catch (e: any) {
         uni.hideLoading()
         const errMsg = e?.message || '上传失败，请重试'
-        console.error('上传营业执照失败:', e)
+        console.error('上传营业执照失败:', e instanceof Error ? e.message : 'unknown error')
         uni.showToast({ title: errMsg, icon: 'none', duration: 2000 })
       }
     },
     fail: (err) => {
-      console.error('选择图片失败:', err)
+      console.error('选择图片失败')
       uni.showToast({ title: '选择图片失败', icon: 'none' })
     }
   })
@@ -438,7 +437,7 @@ const submitForm = async () => {
       uni.reLaunch({ url: '/pages/index/index' })
     }, 1500)
   } catch (e) {
-    console.error('submit error', e)
+    console.error('submit error', e instanceof Error ? e.message : 'unknown error')
     uni.showToast({ title: '提交失败，请重试', icon: 'none' })
   } finally {
     submitting.value = false

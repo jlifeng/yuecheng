@@ -47,7 +47,7 @@ async function handleLoginSuccess(
       .single()
 
     if (createError) {
-      console.error('[phone-login] 创建 profile 失败:', createError)
+      console.error('[phone-login] 创建 profile 失败:', createError.message)
     } else {
       userProfile = newProfile
       const { error: assignError } = await serviceClient.rpc('assign_role', {
@@ -65,8 +65,7 @@ async function handleLoginSuccess(
   console.log('[phone-login] 角色查询:', {
     success: !rolesError,
     error: rolesError?.message,
-    rolesCount: roles?.length,
-    roles: roles
+    rolesCount: roles?.length
   })
 
   // 获取用户权限列表
@@ -96,17 +95,17 @@ async function handleLoginSuccess(
       .rpc('get_user_roles', { user_id: authData.user.id })
 
     if (newRolesError) {
-      console.error('[phone-login] 再次获取角色失败:', newRolesError)
+      console.error('[phone-login] 再次获取角色失败:', newRolesError.message)
     } else {
       userRoles = newRoles || []
-      console.log('[phone-login] 再次获取角色成功:', userRoles)
+      console.log('[phone-login] 再次获取角色成功:', userRoles.length)
     }
 
     const { data: newPermissions, error: newPermsError } = await serviceClient
       .rpc('get_user_permissions', { user_id: authData.user.id })
 
     if (newPermsError) {
-      console.error('[phone-login] 再次获取权限失败:', newPermsError)
+      console.error('[phone-login] 再次获取权限失败:', newPermsError.message)
     } else {
       userPermissions = newPermissions || []
     }
@@ -178,7 +177,7 @@ Deno.serve(async (req: Request) => {
     // 兼容 account 和 phone 两种参数名
     const account = body.account || body.phone || ''
     const password = body.password || ''
-    console.log('[phone-login] 收到请求, account:', account)
+    console.log('[phone-login] 收到登录请求')
 
     // 参数验证
     if (!account || !password) {
@@ -224,7 +223,7 @@ Deno.serve(async (req: Request) => {
         .maybeSingle()
 
       if (nameError || !profileByName?.phone) {
-        console.log('[phone-login] 账号名未找到:', account, nameError?.message)
+        console.log('[phone-login] 账号名未找到:', nameError?.message || 'not found')
         return new Response(JSON.stringify({ success: false, error: '账号或密码错误' }), {
           status: 401,
           headers: { 'Content-Type': 'application/json', ...corsHeaders }
@@ -233,13 +232,10 @@ Deno.serve(async (req: Request) => {
 
       phone = profileByName.phone
       virtualEmail = `${phone}@luxeway.user`
-      console.log('[phone-login] 账号名映射到手机号:', phone)
     }
 
     // 创建 Supabase 客户端（使用 anon key）
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-
-    console.log('[phone-login] 虚拟邮箱:', virtualEmail)
 
     // 使用 Supabase Auth 登录
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
@@ -249,12 +245,11 @@ Deno.serve(async (req: Request) => {
 
     console.log('[phone-login] 认证结果:', {
       success: !authError,
-      error: authError?.message,
-      userId: authData?.user?.id
+      error: authError?.message
     })
 
     if (authError) {
-      console.error('[phone-login] 登录失败:', authError)
+      console.error('[phone-login] 登录失败:', authError.message)
 
       if (authError.message.includes('Invalid login credentials')) {
         // 密码错误 —— 可能是微信登录创建的用户（随机密码），尝试用 service key 重置密码
@@ -269,7 +264,7 @@ Deno.serve(async (req: Request) => {
           .maybeSingle()
 
         if (profileLookup?.id) {
-          console.log('[phone-login] 找到 profile，尝试重置密码:', profileLookup.id)
+          console.log('[phone-login] 找到 profile，尝试重置密码')
           const { error: updateError } = await serviceClient.auth.admin.updateUserById(
             profileLookup.id,
             { password: password }
@@ -284,13 +279,13 @@ Deno.serve(async (req: Request) => {
             if (!retryError && retryData) {
               return await handleLoginSuccess(retryData, phone, serviceClient, corsHeaders)
             } else {
-              console.error('[phone-login] 重置后重新登录失败:', retryError)
+              console.error('[phone-login] 重置后重新登录失败:', retryError?.message)
             }
           } else {
-            console.error('[phone-login] 密码重置失败:', updateError)
+            console.error('[phone-login] 密码重置失败:', updateError.message)
           }
         } else {
-          console.log('[phone-login] 未找到对应用户的 profile，phone:', phone)
+          console.log('[phone-login] 未找到对应用户的 profile')
         }
 
         return new Response(JSON.stringify({ success: false, error: '账号或密码错误' }), {
@@ -309,7 +304,7 @@ Deno.serve(async (req: Request) => {
     return await handleLoginSuccess(authData, phone, serviceClient, corsHeaders)
 
   } catch (e) {
-    console.error('[phone-login] 捕获异常:', e)
+    console.error('[phone-login] 捕获异常:', e instanceof Error ? e.message : 'unknown error')
     return new Response(JSON.stringify({ success: false, error: '服务器错误: ' + (e instanceof Error ? e.message : String(e)) }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders }

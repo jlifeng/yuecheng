@@ -109,8 +109,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 
-const SUPABASE_URL = 'https://qcsmavxqjofrhrdwgkpt.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjc21hdnhxam9mcmhyZHdna3B0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3OTU2OTUsImV4cCI6MjA5MTM3MTY5NX0.zM4mVvvZAylQIXZFrnzaSAy_MGqTvR3hrSWfSSP8xRQ'
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase'
 
 const merchantId = ref('')
 const merchant = ref<any>(null)
@@ -155,7 +154,7 @@ const loadMerchant = async () => {
       }
     }
   } catch (e) {
-    console.error('加载商家信息失败', e)
+    console.error('加载商家信息失败', e instanceof Error ? e.message : 'unknown error')
     uni.showToast({ title: '加载失败', icon: 'none' })
   }
 }
@@ -177,7 +176,7 @@ const loadVehicle = async () => {
       vehicle.value = (res.data as any[])[0]
     }
   } catch (e) {
-    console.error('加载车辆信息失败', e)
+    console.error('加载车辆信息失败', e instanceof Error ? e.message : 'unknown error')
   }
 }
 
@@ -250,7 +249,7 @@ const updateMerchantStatus = async (status: 'approved' | 'rejected') => {
       uni.navigateBack()
     }, 1000)
   } catch (e) {
-    console.error('更新状态失败', e)
+    console.error('更新状态失败', e instanceof Error ? e.message : 'unknown error')
     uni.showToast({ title: '操作失败', icon: 'none' })
   } finally {
     loading.value = false

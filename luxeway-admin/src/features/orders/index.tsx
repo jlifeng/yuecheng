@@ -81,8 +81,8 @@ export function Orders() {
       setOrders(result.data || [])
       setTotal(result.count || 0)
       setCurrentPage(page)
-    } catch (error) {
-      console.error('Failed to load orders:', error)
+    } catch {
+      // Keep the existing data visible when a refresh fails.
     } finally {
       setLoading(false)
       loadingRef.current = false
@@ -129,8 +129,8 @@ export function Orders() {
       setDeleteDialogOpen(false)
       setOrderToDelete(null)
       loadData(currentPage)
-    } catch (error) {
-      console.error('Failed to delete order:', error)
+    } catch {
+      // The API helper reports the failure through its return path.
     }
   }
 

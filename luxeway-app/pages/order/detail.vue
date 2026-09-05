@@ -238,6 +238,7 @@ import { fetchOrderDetail, cancelOrder, confirmOrderFees, submitReview, checkRev
 import { useOrderTimeline } from '@/composables/useOrderTimeline'
 import { canCancelFulfillment, getDemandStatusForFulfillment } from '@/utils/fulfillmentStateMachine'
 import type { FulfillmentStatus } from '@/types/order'
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase'
 
 const demandId = ref('')
 const orderDetail = ref<PassengerOrderDetail | null>(null)
@@ -374,10 +375,10 @@ const loadOrderDetail = async (id: string) => {
       // 从报价中获取 merchant_id
       const accessToken = uni.getStorageSync('accessToken')
       const bidRes = await uni.request({
-        url: `https://qcsmavxqjofrhrdwgkpt.supabase.co/rest/v1/bids?demand_id=eq.${id}&status=eq.ACCEPTED&select=merchant_id`,
+        url: `${SUPABASE_URL}/rest/v1/bids?demand_id=eq.${id}&status=eq.ACCEPTED&select=merchant_id`,
         method: 'GET',
         header: {
-          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjc21hdnhxam9mcmhyZHdna3B0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3OTU2OTUsImV4cCI6MjA5MTM3MTY5NX0.zM4mVvvZAylQIXZFrnzaSAy_MGqTvR3hrSWfSSP8xRQ',
+          'apikey': SUPABASE_ANON_KEY,
           'Authorization': `Bearer ${accessToken}`
         }
       })
@@ -394,9 +395,9 @@ const loadOrderDetail = async (id: string) => {
       }
     }
 
-    console.log('订单详情:', orderDetail.value)
+    console.log('订单详情已加载')
   } catch (error) {
-    console.error('加载订单详情失败', error)
+    console.error('加载订单详情失败', error instanceof Error ? error.message : 'unknown error')
     uni.showToast({ title: '加载失败', icon: 'none' })
   } finally {
     uni.hideLoading()
@@ -429,7 +430,7 @@ const onConfirmFees = async () => {
     uni.showToast({ title: '已确认完成', icon: 'success' })
     await loadOrderDetail(demandId.value)
   } catch (error: any) {
-    console.error('确认费用失败', error)
+    console.error('确认费用失败', error instanceof Error ? error.message : 'unknown error')
     uni.showToast({ title: error?.message || '确认失败', icon: 'none' })
   } finally {
     confirmingFees.value = false
@@ -462,7 +463,7 @@ const confirmCancel = async () => {
       loadOrderDetail(demandId.value)
     }, 500)
   } catch (error: any) {
-    console.error('取消订单失败', error)
+    console.error('取消订单失败', error instanceof Error ? error.message : 'unknown error')
     uni.showToast({ title: error?.message || '取消失败', icon: 'none' })
   } finally {
     cancelling.value = false
@@ -508,7 +509,7 @@ const submitReviewClick = async () => {
     reviewModalVisible.value = false
     hasReviewed.value = true
   } catch (error) {
-    console.error('提交评价失败', error)
+    console.error('提交评价失败', error instanceof Error ? error.message : 'unknown error')
     uni.showToast({ title: '提交失败', icon: 'none' })
   } finally {
     submittingReview.value = false

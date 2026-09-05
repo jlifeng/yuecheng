@@ -308,8 +308,7 @@ import {
 } from '@/utils/fulfillmentStateMachine'
 import { getFulfillmentStatusCopy } from '@/utils/fulfillmentStatusCopy'
 
-const SUPABASE_URL = 'https://qcsmavxqjofrhrdwgkpt.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjc21hdnhxam9mcmhyZHdna3B0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3OTU2OTUsImV4cCI6MjA5MTM3MTY5NX0.zM4mVvvZAylQIXZFrnzaSAy_MGqTvR3hrSWfSSP8xRQ'
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase'
 
 const demandId = ref('')
 const bidId = ref('')
@@ -512,7 +511,7 @@ const loadAssignedEntities = async (
         }
       }
     } catch (e) {
-      console.error('加载指派司机失败', e)
+      console.error('加载指派司机失败', e instanceof Error ? e.message : 'unknown error')
     }
   }
 
@@ -535,7 +534,7 @@ const loadAssignedEntities = async (
         }
       }
     } catch (e) {
-      console.error('加载指派车辆失败', e)
+      console.error('加载指派车辆失败', e instanceof Error ? e.message : 'unknown error')
     }
   }
 }
@@ -625,11 +624,11 @@ const loadOrderDetail = async (id: string) => {
           }
         }
       } catch (e) {
-        console.error('加载费用失败', e)
+        console.error('加载费用失败', e instanceof Error ? e.message : 'unknown error')
       }
     }
   } catch (error) {
-    console.error('加载订单详情失败', error)
+    console.error('加载订单详情失败', error instanceof Error ? error.message : 'unknown error')
     uni.showToast({ title: '加载失败', icon: 'none' })
   } finally {
     uni.hideLoading()
@@ -664,7 +663,7 @@ const onPrimaryAction = async () => {
     uni.showToast({ title: '已更新', icon: 'success' })
     await loadOrderDetail(demandId.value)
   } catch (error: any) {
-    console.error('推进履约失败', error)
+    console.error('推进履约失败', error instanceof Error ? error.message : 'unknown error')
     uni.showToast({ title: error?.message || '操作失败', icon: 'none' })
   } finally {
     advancing.value = false
@@ -721,7 +720,7 @@ const doSubmitFees = async (payload: {
     feeModalVisible.value = false
     await loadOrderDetail(demandId.value)
   } catch (error: any) {
-    console.error('提交费用失败', error)
+    console.error('提交费用失败', error instanceof Error ? error.message : 'unknown error')
     uni.showToast({ title: error?.message || '提交失败', icon: 'none' })
   } finally {
     submittingFees.value = false
@@ -778,7 +777,7 @@ const confirmCancel = async () => {
     cancelModalVisible.value = false
     await loadOrderDetail(demandId.value)
   } catch (error: any) {
-    console.error('取消订单失败', error)
+    console.error('取消订单失败', error instanceof Error ? error.message : 'unknown error')
     uni.showToast({ title: error?.message || '取消失败', icon: 'none' })
   } finally {
     cancelling.value = false
